@@ -1,0 +1,697 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F1317">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Exit Monitor">
+<title>Exit Monitor</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230F1317'/%3E%3Cpath d='M8 20l5-6 4 3 7-9' fill='none' stroke='%23FFC24B' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230F1317'/%3E%3Cpath d='M44 112l30-34 22 16 40-50' fill='none' stroke='%23FFC24B' stroke-width='12' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Exit%20Monitor%22%2C%22short_name%22%3A%22Exit%20Monitor%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230F1317%22%2C%22theme_color%22%3A%22%230F1317%22%2C%22start_url%22%3A%22.%22%7D">
+
+<style>
+  :root{
+    --chassis:#0F1317; --panel:#181E24; --panelUp:#1F2730; --etch:#2B343D;
+    --text:#E9EEF3; --dim:#8C99A6; --faint:#5C6873;
+    --amber:#FFC24B; --green:#3ECF8E; --teal:#4FD1C5; --warn:#F5A742;
+    --orange:#F58742; --red:#F16D6D; --redDeep:#C0392B;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--chassis); color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .wrap{max-width:460px;margin:0 auto;padding:16px 12px 40px}
+  .mono{font-family:var(--mono)}
+  .row{display:flex;align-items:center;justify-content:space-between}
+  .muted{color:var(--dim)} .faint{color:var(--faint)}
+  .up{text-transform:uppercase;letter-spacing:.14em;font-size:11px;font-weight:600}
+
+  header .kick{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+  header .title{font-size:19px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+
+  button{font-family:inherit;cursor:pointer;border:none}
+  .btn{padding:7px 12px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.08em;
+       text-transform:uppercase;background:var(--panelUp);border:1px solid var(--etch);color:var(--text)}
+  .btn.amber{color:var(--amber)}
+  .btn:disabled{color:var(--faint);background:var(--panel)}
+  .link{background:none;border:none;color:var(--amber);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 4px}
+
+  .card{background:var(--panel);border:1px solid var(--etch);border-radius:11px;overflow:hidden;margin-bottom:12px}
+  .card > .hd{display:flex;align-items:center;justify-content:space-between;padding:9px 12px}
+  .sub{border-top:1px solid var(--etch)}
+  .p12{padding:10px 12px}
+
+  .errbar{background:#2A1A1A;border:1px solid var(--redDeep);color:var(--red);
+          border-radius:11px;padding:10px 12px;margin-bottom:12px;font-size:13px}
+
+  .verdict{border-radius:11px;padding:16px;margin-bottom:12px;border:1px solid}
+  .verdict .big{font-weight:900;text-transform:uppercase;font-size:30px;line-height:1.05;letter-spacing:.02em;margin-top:4px}
+  .verdict .order{margin-top:8px;font-size:13px}
+  .track{position:relative;height:6px;border-radius:99px;background:var(--etch)}
+  .track .mid{position:absolute;top:0;bottom:0;left:50%;width:1px;background:var(--faint)}
+  .track .fill{position:absolute;top:0;bottom:0;border-radius:99px}
+  .track .dot{position:absolute;top:50%;width:9px;height:9px;border-radius:50%;transform:translate(-50%,-50%)}
+
+  .pill{padding:9px 12px;border-top:1px solid var(--etch)}
+  .pill .lab{font-size:14px;font-weight:500}
+  .pill .note{font-size:11.5px;color:var(--faint);margin-top:4px}
+
+  .lamp{display:flex;gap:11px;align-items:flex-start;padding:10px 12px;border-top:1px solid var(--etch)}
+  .lamp .dot{margin-top:3px;width:11px;height:11px;border-radius:3px;flex:none;border:1.5px solid var(--faint)}
+  .lamp .det{font-size:11.5px;color:var(--faint);margin-top:2px}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--etch)}
+  .grid2 > div{background:var(--panel);padding:11px 12px}
+  .big-num{font-size:21px;font-family:var(--mono);color:var(--amber);line-height:1.2}
+
+  .wl{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-top:1px solid var(--etch)}
+  .badge{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+
+  ol.lad{margin:10px 0 0;padding-left:18px;font-size:13px;color:var(--dim)}
+  ol.lad li{margin-bottom:6px}
+  ol.lad b{color:var(--text);font-weight:600}
+
+  label.nin{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0}
+  label.nin span.l{font-size:13px;color:var(--dim)}
+  label.nin .r{display:flex;align-items:center;gap:5px}
+  label.nin .pfx{font-size:11px;color:var(--faint)}
+  input[type=number]{width:104px;text-align:right;padding:6px 8px;border-radius:6px;
+    background:var(--chassis);border:1px solid var(--etch);color:var(--amber);font-family:var(--mono);font-size:13px}
+  input[type=number]:focus{outline:none;border-color:var(--amber)}
+
+  .foot{font-size:11.5px;line-height:1.6;color:var(--faint);padding:2px 4px 10px}
+  .tag{font-size:11px;color:var(--faint);font-family:var(--mono)}
+</style>
+
+<div id="root" class="wrap"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- palette (for inline dynamic colors) ----------
+  const C = { text:"#E9EEF3", dim:"#8C99A6", faint:"#5C6873", amber:"#FFC24B",
+    green:"#3ECF8E", teal:"#4FD1C5", warn:"#F5A742", orange:"#F58742", red:"#F16D6D" };
+
+  const DEFAULT_TH = { caution:52000, structural:48000, capitulation:42000, velocity:-12 };
+
+  const COINS = [
+    { id:"bitcoin",      base:"BTC",    sym:"BTC",    name:"Bitcoin",       core:true },
+    { id:"ethereum",     base:"ETH",    sym:"ETH",    name:"Ethereum",      core:true },
+    { id:"solana",       base:"SOL",    sym:"SOL",    name:"Solana",        floorKey:"sol" },
+    { id:"near",         base:"NEAR",   sym:"NEAR",   name:"NEAR Protocol", floorKey:"near" },
+    { id:"bittensor",    base:"TAO",    sym:"TAO",    name:"Bittensor",     floorKey:"tao" },
+    { id:"sui",          base:"SUI",    sym:"SUI",    name:"Sui",           floorKey:"sui" },
+    { id:"render-token", base:"RENDER", sym:"RENDER", name:"Render",        floorKey:"render" },
+  ];
+
+  // ---------- format / math ----------
+  const fmtPrice = (n) => {
+    if (n == null || isNaN(n) || n === "") return "—";
+    n = +n;
+    if (n >= 1000) return n.toLocaleString("en-US",{maximumFractionDigits:0});
+    if (n >= 1)    return n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    return n.toLocaleString("en-US",{minimumFractionDigits:3,maximumFractionDigits:4});
+  };
+  const fmtPct = (n) => (n == null || isNaN(n) ? "—" : (n>0?"+":"") + (+n).toFixed(1) + "%");
+  const fmt1   = (n) => (n == null || isNaN(n) ? "—" : (+n).toFixed(1));
+  const clamp  = (v,lo,hi) => Math.max(lo,Math.min(hi,v));
+  const round3 = (x) => +(x).toPrecision(3);
+  const tn = (x,def) => (x!=="" && x!=null && isFinite(+x)) ? +x : def;      // number or default
+  const nOrNull = (x) => (x!=="" && x!=null && isFinite(+x)) ? +x : null;
+  function median(a){ const s=a.slice().sort((x,y)=>x-y); const m=Math.floor(s.length/2);
+    return s.length%2 ? s[m] : (s[m-1]+s[m])/2; }
+  const sma = (arr,n) => (arr && arr.length>=n ? arr.slice(-n).reduce((a,b)=>a+b,0)/n : null);
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+  function rsi(closes, period=14){
+    if(!closes || closes.length < period+1) return null;
+    let g=0,l=0;
+    for(let i=1;i<=period;i++){ const d=closes[i]-closes[i-1]; if(d>0) g+=d; else l-=d; }
+    let ag=g/period, al=l/period;
+    for(let i=period+1;i<closes.length;i++){ const d=closes[i]-closes[i-1];
+      ag=(ag*(period-1)+Math.max(d,0))/period; al=(al*(period-1)+Math.max(-d,0))/period; }
+    if(al===0) return 100;
+    return 100 - 100/(1+ag/al);
+  }
+
+  // ---------- storage ----------
+  const lsGet = (k)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } };
+  const lsSet = (k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ return false; } };
+
+  // ---------- network ----------
+  const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
+  async function getJson(url, tries=2, timeoutMs=8000){
+    let lastErr;
+    for(let i=0;i<tries;i++){
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), timeoutMs);
+      try{
+        const res = await fetch(url,{signal:ctrl.signal});
+        clearTimeout(t);
+        if(res.ok) return await res.json();
+        lastErr = new Error("HTTP "+res.status);
+        if(i<tries-1) await sleep(res.status===429 ? 2000 : 800);
+      }catch(e){ clearTimeout(t); lastErr=e; if(i<tries-1) await sleep(800); }
+    }
+    throw lastErr;
+  }
+
+  // ---------- price sources (each returns {SYM:{price,ch24?}}) ----------
+  async function srcOKX(){
+    const j = await getJson("https://www.okx.com/api/v5/market/tickers?instType=SPOT",1,8000);
+    const want={}; COINS.forEach(c=>want[c.base+"-USDT"]=c.sym);
+    const out={};
+    for(const r of (j&&j.data)||[]){
+      const sym=want[r.instId]; if(!sym) continue;
+      const price=parseFloat(r.last), open=parseFloat(r.open24h);
+      if(price>0) out[sym]={price, ch24: open>0 ? (price-open)/open*100 : null};
+    }
+    return out;
+  }
+  async function srcBinance(){
+    const syms = COINS.map(c=>c.base+"USDT");
+    const q = encodeURIComponent(JSON.stringify(syms));
+    // data-api.binance.vision mirror: same REST, less geo-restricted, CORS-open
+    const rows = await getJson("https://data-api.binance.vision/api/v3/ticker/24hr?symbols="+q,1,8000);
+    const map={}; COINS.forEach(c=>map[c.base+"USDT"]=c.sym);
+    const out={};
+    for(const r of rows||[]){ const sym=map[r.symbol]; if(!sym) continue;
+      const price=parseFloat(r.lastPrice); if(price>0) out[sym]={price, ch24:parseFloat(r.priceChangePercent)}; }
+    return out;
+  }
+  async function srcCoinbase(){
+    const out={};
+    await Promise.all(COINS.filter(c=>c.base!=="TAO").map(async c=>{
+      try{ const j=await getJson("https://api.coinbase.com/v2/prices/"+c.base+"-USD/spot",1,7000);
+           const p=parseFloat(j&&j.data&&j.data.amount); if(p>0) out[c.sym]={price:p}; }catch(e){}
+    }));
+    return out;
+  }
+  async function srcKucoin(){
+    const j = await getJson("https://api.kucoin.com/api/v1/market/allTickers",1,8000);
+    const map={}; COINS.forEach(c=>map[c.base+"-USDT"]=c.sym);
+    const out={};
+    for(const t of (j&&j.data&&j.data.ticker)||[]){ const sym=map[t.symbol]; if(!sym) continue;
+      const p=parseFloat(t.last); if(p>0) out[sym]={price:p, ch24: t.changeRate!=null ? parseFloat(t.changeRate)*100 : null}; }
+    return out;
+  }
+
+  function aggregate(results){
+    const coins={}, quality={};
+    for(const c of COINS){
+      const prices=[], ch24s=[];
+      for(const res of results){ const d=res && res[c.sym];
+        if(d && isFinite(d.price) && d.price>0){ prices.push(d.price); if(d.ch24!=null && isFinite(d.ch24)) ch24s.push(d.ch24); } }
+      if(!prices.length){ coins[c.sym]={price:null}; quality[c.sym]={n:0,spread:0}; continue; }
+      const med = median(prices);
+      const spread = prices.length>1 ? (Math.max.apply(null,prices)-Math.min.apply(null,prices))/med : 0;
+      coins[c.sym] = { price:med, ch24: ch24s.length ? median(ch24s) : null };
+      quality[c.sym] = { n:prices.length, spread };
+    }
+    return { coins, quality };
+  }
+
+  // ---------- history (BTC daily + weekly closes, multi-exchange fallback) ----------
+  async function dBinance(){ const r=await getJson("https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=365",1,8000);
+    return (r||[]).map(x=>parseFloat(x[4])).filter(isFinite); }
+  async function dCoinbase(){ const r=await getJson("https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=86400",1,8000);
+    return (r||[]).map(x=>parseFloat(x[4])).filter(isFinite).reverse(); }
+  async function dOKX(){ const j=await getJson("https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1D&limit=300",1,8000);
+    return ((j&&j.data)||[]).map(x=>parseFloat(x[4])).filter(isFinite).reverse(); }
+  async function dKraken(){ const j=await getJson("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",1,8000);
+    const arr=Object.values((j&&j.result)||{}).find(Array.isArray)||[]; return arr.map(x=>parseFloat(x[4])).filter(isFinite); }
+
+  async function wBinance(){ const r=await getJson("https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1w&limit=220",1,8000);
+    return (r||[]).map(x=>parseFloat(x[4])).filter(isFinite); }
+  async function wCoinbase(){ const r=await getJson("https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=604800",1,8000);
+    return (r||[]).map(x=>parseFloat(x[4])).filter(isFinite).reverse(); }
+  async function wOKX(){ const j=await getJson("https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1W&limit=220",1,8000);
+    return ((j&&j.data)||[]).map(x=>parseFloat(x[4])).filter(isFinite).reverse(); }
+  async function wKraken(){ const j=await getJson("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=10080",1,8000);
+    const arr=Object.values((j&&j.result)||{}).find(Array.isArray)||[]; return arr.map(x=>parseFloat(x[4])).filter(isFinite); }
+
+  async function firstOK(fns, minLen){
+    for(const fn of fns){ try{ const a=await fn(); if(a && a.length>=minLen) return {arr:a}; }catch(e){} }
+    return null;
+  }
+
+  async function getHistory(){
+    const cache = lsGet("exitmon2:hist");
+    const good = cache && Array.isArray(cache.daily) && cache.daily.length>=210;
+    if(good && Date.now()-cache.ts < 12*3600*1000)
+      return { daily:cache.daily.slice(), weekly:(cache.weekly||[]).slice(), status:"cached" };
+
+    const d = await firstOK([dBinance,dCoinbase,dOKX,dKraken],210);
+    const w = await firstOK([wBinance,wCoinbase,wOKX,wKraken],200);
+    if(d){
+      lsSet("exitmon2:hist",{ ts:Date.now(), daily:d.arr, weekly: w?w.arr:[] });
+      return { daily:d.arr, weekly: w?w.arr:[], status:"live" };
+    }
+    if(good) return { daily:cache.daily.slice(), weekly:(cache.weekly||[]).slice(), status:"stale" };
+    return { daily:null, weekly:null, status:"fail" };
+  }
+
+  function computeInd(daily, weekly, live){
+    if(!daily || daily.length<210) return {};
+    const closes = daily.slice();
+    if(live) closes[closes.length-1] = live;   // pin last close to live median
+    // weekly proxy from daily strides (fallback for weekly RSI)
+    const wproxy=[]; for(let i=closes.length-1;i>=0;i-=7) wproxy.unshift(closes[i]);
+    const ma50  = sma(closes,50);
+    const ma200 = sma(closes,200);
+    const ma200prev = sma(closes.slice(0,-10),200);
+    const price = closes[closes.length-1];
+    const last90 = closes.slice(-90), prev90 = closes.slice(-180,-90);
+    const minL = Math.min.apply(null,last90), minP = Math.min.apply(null,prev90);
+    let structure=0; if(minL>minP*1.02) structure=2; else if(minL<minP*0.98) structure=-2;
+    const distMA  = (ma200!=null&&price!=null)?(price-ma200)/ma200:null;
+    const maSlope = (ma200!=null&&ma200prev!=null)?(ma200-ma200prev)/ma200prev:null;
+    const rsiW = (weekly&&weekly.length>=15) ? rsi(weekly,14) : rsi(wproxy,14);
+    const ma200w = (weekly&&weekly.length>=200) ? sma(weekly,200) : null;
+    return {
+      ma50, ma200, ma200w, distMA, maSlope,
+      cross: (ma50!=null&&ma200!=null) ? (ma50>=ma200?"golden":"death") : null,
+      rsiD: rsi(closes.slice(-120),14), rsiW,
+      structure, weeklyReal: !!(weekly&&weekly.length>=15),
+    };
+  }
+
+  // ---------- fear & greed, fx ----------
+  async function getFng(){
+    try{
+      const j=await getJson("https://api.alternative.me/fng/?limit=30",1,7000);
+      const arr=((j&&j.data)||[]).map(d=>parseInt(d.value,10)).filter(n=>!isNaN(n));
+      if(!arr.length) return null;
+      let trend=null;
+      if(arr.length>=14){ const recent=arr.slice(0,7).reduce((a,b)=>a+b,0)/7, prior=arr.slice(7,14).reduce((a,b)=>a+b,0)/7; trend=recent-prior; }
+      return { fng:arr[0], trend };
+    }catch(e){ return null; }
+  }
+  async function getFx(){
+    const cache=lsGet("exitmon2:fx");
+    if(cache && cache.rate && Date.now()-cache.ts < 24*3600*1000) return cache.rate;
+    const tries=[
+      async()=>{ const j=await getJson("https://api.frankfurter.app/latest?from=USD&to=EUR",1,7000); return j&&j.rates&&j.rates.EUR; },
+      async()=>{ const j=await getJson("https://open.er-api.com/v6/latest/USD",1,7000); return j&&j.rates&&j.rates.EUR; },
+      async()=>{ const j=await getJson("https://api.exchangerate.host/latest?base=USD&symbols=EUR",1,7000); return j&&j.rates&&j.rates.EUR; },
+    ];
+    for(const t of tries){ try{ const r=await t(); if(r && isFinite(r)){ lsSet("exitmon2:fx",{ts:Date.now(),rate:r}); return r; } }catch(e){} }
+    return cache && cache.rate ? cache.rate : null;
+  }
+
+  // best-effort 7d for alts (BTC 7d comes from history). Never blocks a read.
+  async function enrichCG(coins){
+    try{
+      const ids=COINS.map(c=>c.id).join(",");
+      const rows=await getJson("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids="+ids+"&price_change_percentage=7d",1,7000);
+      for(const r of rows||[]){ const c=COINS.find(x=>x.id===r.id); if(!c) continue; const d=coins[c.sym];
+        if(d && d.ch7==null) d.ch7 = r.price_change_percentage_7d_in_currency ?? null; }
+    }catch(e){}
+  }
+
+  // ================= STATE =================
+  const state = {
+    loading:true, error:null, source:null, updated:null,
+    coins:{}, ind:{}, quality:{}, fng:null, fngTrend:null,
+    ccy:"EUR", fx:null,
+    th:{...DEFAULT_TH}, floors:null, metrics:{ mvrvZ:null, ma200w:null, ts:null },
+    srcStatus:{}, saveMsg:"",
+    ui:{ rails:false, exit:false, profit:false, config:false },
+  };
+
+  function loadPrefs(){
+    const cfg = lsGet("exitmon2:cfg");
+    if(cfg){ if(cfg.th) state.th={...DEFAULT_TH,...cfg.th}; if(cfg.floors) state.floors=cfg.floors; if(cfg.metrics) state.metrics={...state.metrics,...cfg.metrics}; }
+    const ccy = lsGet("exitmon2:ccy"); if(ccy==="USD"||ccy==="EUR") state.ccy=ccy;
+    const fx  = lsGet("exitmon2:fx");  if(fx && fx.rate) state.fx=fx.rate;
+  }
+  function persist(){ return lsSet("exitmon2:cfg",{ th:state.th, floors:state.floors, metrics:state.metrics }); }
+
+  // ================= FETCH ORCHESTRATOR =================
+  async function refresh(){
+    state.loading=true; state.error=null; render();
+    const settled = await Promise.allSettled([ srcOKX(), srcBinance(), srcCoinbase(), srcKucoin(), getFng(), getFx() ]);
+    const [okx,bin,cb,ku,fngR,fxR] = settled;
+    const priceRes = [okx,bin,cb,ku].map(r=>r.status==="fulfilled"?r.value:null);
+    const { coins, quality } = aggregate(priceRes);
+
+    if(!coins.BTC || coins.BTC.price==null){
+      state.loading=false;
+      state.error="All price sources are unreachable right now. Check your connection and tap Refresh.";
+      render(); return;
+    }
+
+    if(fxR.status==="fulfilled" && fxR.value!=null) state.fx=fxR.value;
+    if(fngR.status==="fulfilled" && fngR.value){ state.fng=fngR.value.fng; state.fngTrend=fngR.value.trend; state.srcStatus.fng="ok"; }
+    else { state.srcStatus.fng="fail"; }
+
+    const hist = await getHistory();
+    state.srcStatus.chart = hist.status;
+    const ind = computeInd(hist.daily, hist.weekly, coins.BTC.price);
+
+    if(hist.daily && hist.daily.length>8){
+      const n=hist.daily.length, live=coins.BTC.price;
+      coins.BTC.ch7 = ((live-hist.daily[n-8])/hist.daily[n-8])*100;
+      if(coins.BTC.ch24==null) coins.BTC.ch24 = ((live-hist.daily[n-2])/hist.daily[n-2])*100;
+      let hi = Math.max(live, Math.max.apply(null,hist.daily));
+      if(hist.weekly && hist.weekly.length) hi = Math.max(hi, Math.max.apply(null,hist.weekly));
+      coins.BTC.athPct = ((live-hi)/hi)*100; // negative
+      ind.ddProxy = (hist.weekly && hist.weekly.length>=200) ? "cycle" : "1y";
+    }
+
+    await enrichCG(coins); // alt 7d best-effort
+
+    if(!state.floors){
+      const nf={}; for(const c of COINS){ if(!c.floorKey) continue; const p=coins[c.sym]&&coins[c.sym].price; nf[c.floorKey]= p? round3(p*0.72):0; }
+      state.floors=nf; persist();
+    }
+
+    state.coins=coins; state.ind=ind; state.quality=quality;
+    state.updated=Date.now();
+    const okCount = quality.BTC.n;
+    state.source = okCount + " exchange" + (okCount>1?"s":"");
+    state.loading=false;
+    render();
+  }
+
+  // ================= ENGINE (pillars / regime / rails / verdict) =================
+  function derive(){
+    const th = state.th, metrics = state.metrics, ind = state.ind, coins = state.coins, floors = state.floors;
+    const btc = coins.BTC || {};
+    const p = btc.price;
+    const sym = (state.ccy==="EUR" && state.fx!=null) ? "€" : "$";
+    const disp = (usd)=> (usd==null ? null : (state.ccy==="EUR" && state.fx!=null ? usd*state.fx : usd));
+
+    const cautionV = tn(th.caution, DEFAULT_TH.caution);
+    const structV  = tn(th.structural, DEFAULT_TH.structural);
+    const capV     = tn(th.capitulation, DEFAULT_TH.capitulation);
+    const veloV    = tn(th.velocity, DEFAULT_TH.velocity);
+
+    const maRel = (ind.ma200!=null && p!=null) ? (p>=ind.ma200?"above":"below") : null;
+    const dd = btc.athPct!=null ? -btc.athPct : null;
+
+    let T=null,M=null,V=null,S=null,St=null, trendNote=null;
+    if(ind.distMA!=null){
+      const d=ind.distMA, golden=ind.cross==="golden";
+      if(Math.abs(d)<0.02) T=0;
+      else if(d>=0.02 && d<0.08) T=golden?2:1;
+      else if(d>=0.08) T=2;
+      else if(d<=-0.02 && d>-0.08) T=golden?-1:-2;
+      else T=-2;
+      const slopeTxt = ind.maSlope==null?"":(ind.maSlope>0.005?", rising":ind.maSlope<-0.005?", falling":", flat");
+      trendNote = (d*100).toFixed(1)+"% "+(d>=0?"above":"below")+" 200D MA"+slopeTxt+(ind.cross?" · "+ind.cross:"");
+    }
+    if(ind.rsiW!=null){ const w=ind.rsiW; M = w<30?-2:w<45?-1:w<=55?0:w<=70?1:2; }
+
+    const ma200w = ind.ma200w!=null ? ind.ma200w : nOrNull(metrics.ma200w);
+    const mvrvAgeDays = metrics.ts ? (Date.now()-metrics.ts)/86400000 : null;
+    const mvrvSet = metrics.mvrvZ!=null && metrics.mvrvZ!=="";
+    const mvrvStale = mvrvSet && (mvrvAgeDays==null || mvrvAgeDays>7);
+    const mvrvFresh = mvrvSet && !mvrvStale;
+    {
+      const z = +metrics.mvrvZ;
+      if(mvrvFresh) V = z<0?2:z<1?1:z<=3?0:z<=5?-1:-2;
+      else if(dd!=null) V = dd>65?2:dd>45?1:dd>20?0:-1;
+      if(V!=null && ma200w!=null && p!=null && p<ma200w) V = clamp(V+1,-2,2);
+    }
+    if(state.fng!=null){ const f=state.fng; S = f<20?2:f<35?1:f<=60?0:f<=75?-1:-2; }
+    if(ind.structure!=null) St = ind.structure;
+
+    const ddLabel = dd!=null ? ("−"+dd.toFixed(0)+"% from "+(ind.ddProxy==="1y"?"1y high":"cycle high")) : null;
+    const noHist = state.srcStatus.chart==="fail";
+    const pillars = [
+      { key:"T", label:"Trend", w:30, v:T, note: trendNote || (noHist?"history unavailable — tap Refresh":"no data") },
+      { key:"M", label:"Momentum", w:20, v:M, note: ind.rsiW!=null ? ("weekly RSI "+fmt1(ind.rsiW)+" · daily "+fmt1(ind.rsiD)+(ind.weeklyReal?"":" (proxy)")) : (noHist?"history unavailable — tap Refresh":"no data") },
+      { key:"V", label:"Valuation", w:25, v:V, note: mvrvFresh ? ("MVRV Z "+metrics.mvrvZ+(mvrvAgeDays!=null?(" ("+(mvrvAgeDays<1?"today":Math.floor(mvrvAgeDays)+"d old")+")"):"")+(ddLabel?(" · "+ddLabel):"")) : (mvrvStale ? ("MVRV "+metrics.mvrvZ+" stale — using "+(ddLabel||"proxy")) : (ddLabel ? (ddLabel+" (proxy)") : "no data")) },
+      { key:"S", label:"Sentiment", w:15, v:S, note: state.fng!=null ? ("F&G "+state.fng+(state.fngTrend!=null?(" ("+(state.fngTrend>1?"improving":state.fngTrend<-1?"worsening":"flat")+")"):"")+" · contrarian") : (state.srcStatus.fng==="fail"?"F&G source unreachable":"no data") },
+      { key:"St",label:"Structure", w:10, v:St, note: St===2?"higher low (90d)":St===-2?"lower low (90d)":St===0?"flat base":(noHist?"history unavailable":"no data") },
+    ];
+    const avail = pillars.filter(x=>x.v!=null);
+    const composite = avail.length ? avail.reduce((a,x)=>a+x.w*x.v,0)/avail.reduce((a,x)=>a+x.w,0) : null;
+    const totalW = pillars.reduce((a,x)=>a+x.w,0), activeW = avail.reduce((a,x)=>a+x.w,0);
+    const coverage = totalW ? activeW/totalW : 0;
+    const btcSources = (state.quality.BTC && state.quality.BTC.n) || 0;
+    const degraded = coverage<0.6 || composite==null || btcSources<2;
+
+    // regime
+    let regime = { key:"NEUTRAL", name:"Neutral / Chop", color:C.dim, order:"No edge either way. Standard weekly buys — nothing clever." };
+    if(composite!=null){
+      const euphoric = (V!=null && V<=-1.5) || (state.fng!=null && state.fng>75 && ind.rsiW!=null && ind.rsiW>70);
+      const deepValue = V!=null && V>=1.5 && M!=null && M<=-1 && S!=null && S>=1;
+      if(euphoric) regime={ key:"EUPHORIA", name:"Euphoria / Top zone", color:C.warn, order:"Top-zone markers flashing. Open the take-profit ladder — this is where the plan sells, not buys." };
+      else if(deepValue) regime={ key:"DEEPVALUE", name:"Capitulation / Deep value", color:C.green, order:"Cycle-bottom conditions. Keep the weekly buys; consider the dip tranche. Rails below are your invalidation." };
+      else if(T!=null && T>=1 && composite>=0.5) regime={ key:"BULL", name:"Bull trend", color:C.green, order:"Uptrend intact. Keep the DCA, stop adding to laggards, let winners run." };
+      else if((T==null||T<1) && composite>-0.3 && (St>0 || (ind.ma50 && p!=null && p>ind.ma50))) regime={ key:"RECOVERY", name:"Early recovery", color:C.teal, order:"Bottom pattern forming. Full-size buys; a 200D MA reclaim confirms it." };
+      else if(composite<=-0.6) regime={ key:"BEAR", name:"Bear trend", color:C.orange, order:"Downtrend, not yet deep value. Half-size buys; let the rails guard the floor." };
+    }
+
+    // rails
+    const altBreaches = COINS.filter(c=>c.floorKey && floors && coins[c.sym] && coins[c.sym].price!=null)
+      .filter(c=> coins[c.sym].price < (nOrNull(floors[c.floorKey]) ?? 0));
+    const lamps=[];
+    const lamp=(id,label,tripped,pts,detail,severity)=>lamps.push({id,label,tripped,pts:tripped?pts:0,detail,severity});
+    lamp("trend", "BTC below 200-day MA", maRel==="below", 15, maRel==null?"No trend data":maRel==="below"?("Bear trend"+(ind.ma200?" (MA ≈ $"+fmtPrice(ind.ma200)+")":"")):"Above — recovery signal","warn");
+    lamp("caution", "BTC below $"+fmtPrice(cautionV), p!=null&&p<cautionV, 20, "Caution zone","warn");
+    lamp("structural", "BTC below $"+fmtPrice(structV), p!=null&&p<structV, 30, "Structural break — 3 daily closes = staged exit","danger");
+    lamp("capitulation", "BTC below $"+fmtPrice(capV), p!=null&&p<capV, 25, "Beyond historical −65% analog","danger");
+    lamp("velocity", "7-day drop > "+Math.abs(veloV)+"%", btc.ch7!=null&&btc.ch7<=veloV, 10, btc.ch7!=null?("7d: "+fmtPct(btc.ch7)):"No data","warn");
+    lamp("alts", "2+ alts below floor", altBreaches.length>=2, 10, altBreaches.length?("Breached: "+altBreaches.map(c=>c.sym).join(", ")):"Floors holding","warn");
+    if(state.fng!=null && state.fng<=10 && p!=null && p<structV) lamp("panic","Extreme fear + structural break",true,5,"F&G "+state.fng+" below floor","danger");
+    const risk = Math.min(100, lamps.reduce((a,l)=>a+l.pts,0));
+    const tripped = lamps.filter(l=>l.tripped);
+
+    // verdict
+    let verdict;
+    if(risk>=70) verdict={ title:"EXIT SIGNAL", color:C.red, key:"RED", order:"Begin the DCA-out ladder now. Staged tranches — no panic market-sells.", override:true };
+    else if(risk>=45) verdict={ title:"EXIT WATCH", color:C.orange, key:"ORANGE", order:"Pause new buys. 3 daily closes under $"+fmtPrice(structV)+" → start the ladder.", override:true };
+    else if(degraded) verdict={ title:"LOW CONFIDENCE", color:C.dim, key:"LOWCONF",
+      order: btcSources<2 ? ("Only "+btcSources+" price source responded — not enough to cross-check. Tap Refresh.")
+            : state.srcStatus.chart==="fail" ? "Price history is unavailable, so trend/momentum/structure are dark. Tap Refresh."
+            : ("Only "+Math.round(coverage*100)+"% of signal weight is live — not enough to trust a regime call. Tap Refresh."),
+      override:false };
+    else verdict={ title:regime.name.toUpperCase(), color:regime.color, key:regime.key, order:regime.order, override:false };
+
+    const gaugePos = composite==null ? null : ((composite+2)/4)*100;
+
+    return { th, metrics, btc, p, sym, disp, maRel, dd, ddLabel, ma200w,
+      pillars, composite, coverage, degraded, btcSources, regime, lamps, risk, tripped, verdict, gaugePos };
+  }
+
+  // ================= RENDER =================
+  const root = document.getElementById("root");
+
+  function section(title, right, inner){
+    return '<div class="card"><div class="hd"><span class="up muted">'+esc(title)+'</span>'+(right||"")+'</div>'+(inner||"")+'</div>';
+  }
+
+  function pillarBar(x){
+    const v=x.v;
+    const pct = v==null?0:(Math.abs(v)/2)*50;
+    const col = v==null?C.faint:v>0?C.green:v<0?C.red:C.dim;
+    const fill = (v!=null && v!==0) ? '<div class="fill" style="background:'+col+';width:'+pct+'%;left:'+(v>0?"50%":(50-pct)+"%")+'"></div>' : "";
+    return '<div class="pill">'+
+      '<div class="row"><span class="lab" style="color:'+(v==null?C.faint:C.text)+'">'+esc(x.label)+' <span class="faint" style="font-size:11px">w'+x.w+'</span></span>'+
+      '<span class="mono" style="font-size:12px;color:'+col+'">'+(v==null?"—":(v>0?"+":"")+v)+'</span></div>'+
+      '<div class="track" style="margin-top:7px"><div class="mid"></div>'+fill+'</div>'+
+      '<div class="note">'+esc(x.note)+'</div></div>';
+  }
+
+  function lampRow(l){
+    const lit=l.tripped, col = lit ? (l.severity==="danger"?C.red:C.warn) : C.green;
+    const dotStyle = "background:"+(lit?col:"transparent")+";border-color:"+(lit?col:C.faint)+";"+(lit?"box-shadow:0 0 8px "+col+"66;":"");
+    return '<div class="lamp"><div class="dot" style="'+dotStyle+'"></div><div style="flex:1;min-width:0">'+
+      '<div class="row" style="gap:8px"><span class="lab" style="color:'+(lit?C.text:C.dim)+'">'+esc(l.label)+'</span>'+
+      '<span class="up mono" style="color:'+(lit?col:C.faint)+'">'+(lit?"+"+l.pts:"clear")+'</span></div>'+
+      '<div class="det">'+esc(l.detail)+'</div></div></div>';
+  }
+
+  function nin(group,key,label,value,prefix){
+    prefix = prefix==null?"$":prefix;
+    const val = (value==null||value==="")?"":value;
+    return '<label class="nin"><span class="l">'+esc(label)+'</span><span class="r">'+
+      (prefix?'<span class="pfx">'+esc(prefix)+'</span>':'')+
+      '<input type="number" step="any" data-group="'+group+'" data-k="'+key+'" value="'+esc(val)+'"></span></label>';
+  }
+
+  function render(){
+    const d = state.loading && !state.updated ? null : derive();
+    const st = state, ui = st.ui;
+    const sym = d ? d.sym : (st.ccy==="EUR"&&st.fx!=null?"€":"$");
+    const disp = d ? d.disp : (u)=>u;
+    let h = "";
+
+    // header
+    h += '<header class="row" style="margin-bottom:12px"><div>'+
+      '<div class="kick">Regime engine · deterministic</div><div class="title">Exit Monitor</div></div>'+
+      '<div style="display:flex;gap:8px">'+
+      '<button class="btn amber" data-action="ccy">'+(st.ccy==="EUR"?"€ EUR":"$ USD")+'</button>'+
+      '<button class="btn'+(st.loading?"":" ")+'" data-action="refresh"'+(st.loading?" disabled":"")+'>'+(st.loading?"Reading…":"Refresh")+'</button>'+
+      '</div></header>';
+
+    if(st.error) h += '<div class="errbar">'+esc(st.error)+'</div>';
+
+    if(!d){
+      h += '<div class="verdict" style="border-color:'+C.dim+'66;background:linear-gradient(180deg,'+C.dim+'1F 0%,var(--panel) 85%)">'+
+        '<div class="big" style="color:'+C.dim+'">READING</div>'+
+        '<div class="order">Pulling prices from the exchanges and computing indicators…</div></div>';
+      root.innerHTML = h; return;
+    }
+
+    const v = d.verdict;
+    // verdict banner
+    h += '<div class="verdict" style="border-color:'+v.color+'66;background:linear-gradient(180deg,'+v.color+'1F 0%,var(--panel) 85%)">'+
+      '<div class="row"><span class="up" style="color:'+v.color+'">'+(v.override?"Rails override":v.key==="LOWCONF"?"Low confidence":"Regime read")+'</span>'+
+      '<span class="tag">'+(st.loading?"…":(Math.round(d.coverage*100)+"% live · rails "+d.risk+"/100"))+'</span></div>'+
+      '<div class="big" style="color:'+v.color+'">'+(st.loading?"READING":esc(v.title))+'</div>'+
+      '<div class="order">'+(st.loading?"Refreshing…":esc(v.order))+'</div>'+
+      (v.override?'<div class="det" style="margin-top:6px;color:'+C.dim+'">Regime read was “'+esc(d.regime.name)+'” — but the rails are law when invalidation levels break.</div>':'')+
+      // gauge
+      '<div style="margin-top:12px;opacity:'+(v.key==="LOWCONF"?0.45:1)+'">'+
+        '<div class="row tag"><span>bearish −2</span><span>read '+(d.composite==null?"—":(d.composite>0?"+":"")+d.composite.toFixed(2))+(v.key==="LOWCONF"?" (partial)":"")+'</span><span>+2 bullish</span></div>'+
+        '<div class="track" style="margin-top:4px"><div class="mid"></div>'+
+        (d.gaugePos!=null?'<div class="dot" style="left:'+d.gaugePos+'%;background:'+(v.key==="LOWCONF"?C.faint:v.color)+';'+(v.key==="LOWCONF"?"":"box-shadow:0 0 8px "+v.color+"88")+'"></div>':'')+
+        '</div></div>'+
+      (st.updated?'<div class="tag" style="margin-top:10px">'+esc(new Date(st.updated).toLocaleString())+' · median of '+esc(st.source||"—")+
+        (st.srcStatus.chart==="live"?" · history live":st.srcStatus.chart==="cached"?" · history cached":st.srcStatus.chart==="stale"?" · history stale":st.srcStatus.chart==="fail"?" · history failed":"")+
+        (st.srcStatus.fng==="fail"?" · F&G failed":"")+'</div>':'')+
+      '</div>';
+
+    // pillars
+    h += section("Five pillars", "", d.pillars.map(pillarBar).join(""));
+
+    // rails
+    const showRails = ui.rails || d.risk>=45;
+    h += section("Risk rails (USD) · "+d.risk+"/100 · "+d.tripped.length+" tripped",
+      '<button class="link" data-action="rails">'+(showRails?"Hide":"Open")+'</button>',
+      showRails ? d.lamps.map(lampRow).join("") : "");
+
+    // market strip
+    const q = st.quality.BTC || {n:0,spread:0};
+    const btc=d.btc, p=d.p;
+    h += section("Market", "",
+      '<div class="grid2">'+
+        '<div><div class="faint" style="font-size:11px">BTC / '+(st.ccy==="EUR"&&st.fx!=null?"EUR":"USD")+'</div>'+
+          '<div class="big-num">'+sym+fmtPrice(disp(p))+'</div>'+
+          '<div class="mono" style="font-size:11px;margin-top:2px;color:'+((btc.ch24||0)<0?C.red:C.green)+'">'+fmtPct(btc.ch24)+' 24h · '+fmtPct(btc.ch7)+' 7d</div>'+
+          '<div class="tag">'+(d.dd!=null?("−"+d.dd.toFixed(0)+"% from "+(st.ind.ddProxy==="1y"?"1y high":"cycle high")):"")+(st.ccy==="EUR"&&st.fx!=null?(" · $"+fmtPrice(p)):"")+'</div>'+
+          '<div class="tag" style="color:'+(q.n>=2?C.faint:C.warn)+'">'+q.n+'/4 sources · agree ±'+((q.spread||0)*100).toFixed(2)+'%</div>'+
+        '</div>'+
+        '<div><div class="faint" style="font-size:11px">Fear &amp; Greed</div>'+
+          '<div class="big-num">'+(st.fng!=null?st.fng:"—")+'</div>'+
+          '<div style="font-size:11px;margin-top:2px;color:'+(st.fng!=null&&st.fng<=25?C.warn:C.dim)+'">'+
+            (st.fng==null?"no data":st.fng<=25?"Extreme fear":st.fng<=45?"Fear":st.fng<=55?"Neutral":st.fng<=75?"Greed":"Extreme greed")+'</div>'+
+          '<div class="track" style="height:4px;margin-top:7px">'+(st.fng!=null?'<div class="dot" style="left:'+st.fng+'%;width:7px;height:7px;background:'+C.amber+'"></div>':'')+'</div>'+
+        '</div>'+
+      '</div>');
+
+    // watchlist
+    let wl="";
+    for(const c of COINS){
+      const dc = st.coins[c.sym] || {};
+      const floor = (c.floorKey && st.floors) ? nOrNull(st.floors[c.floorKey]) : null;
+      let badge=null;
+      if(c.core) badge={t:"CORE",col:C.dim};
+      else if(floor!=null && dc.price!=null){
+        if(dc.price<floor) badge={t:"BELOW FLOOR",col:C.red};
+        else if(dc.price<floor*1.1) badge={t:"NEAR FLOOR",col:C.warn};
+        else badge={t:"OK",col:C.green};
+      }
+      wl += '<div class="wl"><div style="min-width:0"><div style="font-size:14px;font-weight:600">'+c.sym+'</div>'+
+        '<div class="tag">'+(floor!=null?("floor "+sym+fmtPrice(disp(floor))):esc(c.name))+'</div></div>'+
+        '<div style="text-align:right"><div class="mono" style="font-size:14px;color:'+C.amber+'">'+sym+fmtPrice(disp(dc.price))+'</div>'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">'+
+        '<span class="mono" style="font-size:11px;color:'+((dc.ch7||0)<0?C.red:C.green)+'">'+fmtPct(dc.ch7)+' 7d</span>'+
+        (badge?'<span class="badge" style="color:'+badge.col+'">'+badge.t+'</span>':'')+'</div></div></div>';
+    }
+    h += section("Watchlist vs floors","",wl);
+
+    // exit ladder
+    const showExit = ui.exit || v.key==="ORANGE" || v.key==="RED";
+    h += section("Exit ladder (down)",
+      '<button class="link" data-action="exit">'+(showExit?"Hide":"Open")+'</button>',
+      showExit ? '<div class="sub p12"><ol class="lad">'+
+        '<li><b>1. Stop all new buys</b> the day the signal fires.</li>'+
+        '<li><b>2. Week 1:</b> fully exit the weak six if still held — GALA, DOGE, FET, POL, ARB, AVAX.</li>'+
+        '<li><b>3. Weeks 2–3:</b> sell 50% of NEAR, TAO, SUI, RENDER in two tranches.</li>'+
+        '<li><b>4. BTC &amp; ETH last:</b> 25%/week only while BTC stays under the capitulation line.</li>'+
+        '<li><b>5. Park in EUR/stables.</b> Re-entry only on recovery: 200D MA reclaim held a week, F&amp;G &gt; 25, weekly higher low.</li>'+
+        '</ol></div>' : "");
+
+    // take-profit ladder
+    const showProfit = ui.profit || v.key==="EUPHORIA";
+    h += section("Take-profit ladder (up)",
+      '<button class="link" data-action="profit">'+(showProfit?"Hide":"Open")+'</button>',
+      showProfit ? '<div class="sub p12"><div class="tag">Historical top-zone markers — a ladder, not a prediction. DCA in reverse.</div><ol class="lad">'+
+        '<li><b>1. MVRV Z &gt; 5</b> or F&amp;G &gt; 80 for two weeks → sell 25% of SOL/NEAR/TAO/SUI/RENDER.</li>'+
+        '<li><b>2. New BTC ATH + weekly RSI &gt; 80</b> → another 25% of alts, 10% of ETH.</li>'+
+        '<li><b>3. Parabolic month (BTC +40% in 30d)</b> → final 25% of alts. Keep the BTC core.</li>'+
+        '<li><b>4. Never sell everything at once</b> — tops take months, ladders catch them.</li>'+
+        '</ol></div>' : "");
+
+    // config
+    const m = st.metrics;
+    const cfgInner = ui.config ? '<div class="sub p12">'+
+      '<div class="up faint" style="margin:2px 0 4px">BTC rails (USD)</div>'+
+      nin("th","caution","Caution zone",st.th.caution)+
+      nin("th","structural","Structural break",st.th.structural)+
+      nin("th","capitulation","Capitulation",st.th.capitulation)+
+      nin("th","velocity","7d velocity (%)",st.th.velocity,"")+
+      '<div class="up faint" style="margin:10px 0 4px">Valuation metrics (enter manually)</div>'+
+      nin("metrics","mvrvZ","MVRV Z-score",m.mvrvZ,"")+
+      '<div class="tag" style="margin:2px 0 4px">200-week MA (auto): '+(st.ind.ma200w!=null?("$"+fmtPrice(st.ind.ma200w)):"computing…")+
+        (m.ts?(" · MVRV set "+new Date(m.ts).toLocaleDateString()):"")+'</div>'+
+      '<div class="up faint" style="margin:10px 0 4px">Alt floors (USD)</div>'+
+      COINS.filter(c=>c.floorKey).map(c=>nin("floor",c.floorKey,c.sym, st.floors?st.floors[c.floorKey]:"")).join("")+
+      '<div style="display:flex;gap:8px;margin-top:12px">'+
+        '<button class="btn amber" data-action="save" style="background:'+C.amber+';color:#1A1A1A">Save</button>'+
+        '<button class="btn" data-action="recal">Reset floors −28%</button></div>'+
+      (st.saveMsg?'<div class="tag" style="color:'+C.green+';margin-top:8px">'+esc(st.saveMsg)+'</div>':'')+
+      '</div>' : "";
+    h += section("Trigger levels & metrics",
+      '<button class="link" data-action="config">'+(ui.config?"Hide":"Edit")+'</button>', cfgInner);
+
+    h += '<div class="foot">Rule-based reads on live exchange data — every number here comes from public market APIs (medianed across exchanges), computed on your device. No AI, no estimates. Informational tool, not financial advice. Verify prices on your exchange before acting; crypto can fall further than any model expects.</div>';
+
+    root.innerHTML = h;
+  }
+
+  // ================= EVENTS =================
+  root.addEventListener("click", (e)=>{
+    const el = e.target.closest("[data-action]"); if(!el) return;
+    const a = el.dataset.action;
+    if(a==="refresh"){ if(!state.loading) refresh(); }
+    else if(a==="ccy"){ state.ccy = state.ccy==="USD"?"EUR":"USD"; lsSet("exitmon2:ccy",state.ccy); render(); }
+    else if(a==="rails"){ state.ui.rails=!state.ui.rails; render(); }
+    else if(a==="exit"){ state.ui.exit=!state.ui.exit; render(); }
+    else if(a==="profit"){ state.ui.profit=!state.ui.profit; render(); }
+    else if(a==="config"){ state.ui.config=!state.ui.config; render(); }
+    else if(a==="save"){ const ok=persist(); state.saveMsg=ok?"Saved":"Save failed"; render(); setTimeout(()=>{state.saveMsg="";render();},2500); }
+    else if(a==="recal"){
+      const nf={}; for(const c of COINS){ if(!c.floorKey) continue; const p=state.coins[c.sym]&&state.coins[c.sym].price;
+        nf[c.floorKey]= p? round3(p*0.72) : (state.floors&&state.floors[c.floorKey])||0; }
+      state.floors=nf; persist(); state.saveMsg="Floors reset to −28% of current"; render(); setTimeout(()=>{state.saveMsg="";render();},2500);
+    }
+  });
+
+  // config inputs: sync state, no re-render (keeps keyboard focus)
+  root.addEventListener("input", (e)=>{
+    const t=e.target; if(!t.dataset || !t.dataset.group) return;
+    const g=t.dataset.group, k=t.dataset.k, raw=t.value;
+    if(g==="th")      state.th[k] = raw==="" ? "" : +raw;
+    else if(g==="floor"){ state.floors = state.floors||{}; state.floors[k] = raw==="" ? "" : +raw; }
+    else if(g==="metrics") state.metrics = { ...state.metrics, [k]: raw==="" ? null : +raw, ts: Date.now() };
+  });
+
+  // ================= BOOT =================
+  loadPrefs();
+  render();
+  refresh();
+})();
+</script>
