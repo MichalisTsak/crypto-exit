@@ -1,0 +1,52 @@
+name: Exit Monitor watchdog
+
+# Runs the real engine on a schedule and pings Telegram when a rail trips, the
+# regime flips, or the exit verdict escalates/eases — so you hear about a market
+# event without opening the dashboard. No secrets → it runs but only logs.
+
+on:
+  schedule:
+    - cron: "0 */2 * * *" # every 2 hours (UTC)
+  workflow_dispatch: # manual runs from the Actions tab
+    inputs:
+      test_ping:
+        description: "Send a test Telegram message and exit (verifies your bot token / chat id)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: watchdog
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cross-run state: warms the API caches (respects the bitcoin-data 15/day
+      # quota + carries the 48h regime memory) and remembers the last verdict.
+      # Rolling key — each run saves a fresh entry and restores the newest prior one.
+      - name: Restore watchdog state
+        uses: actions/cache@v4
+        with:
+          path: watchdog/.state
+          key: watchdog-state-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            watchdog-state-
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run watchdog
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WATCHDOG_URL: ${{ vars.WATCHDOG_URL }}
+          WATCHDOG_TEST_PING: ${{ inputs.test_ping }}
+        run: node watchdog/check.js

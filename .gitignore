@@ -1,0 +1,6 @@
+# Watchdog cross-run state (persisted via GitHub Actions cache, never in git)
+watchdog/.state/
+
+# Local tooling / OS noise
+node_modules/
+.DS_Store

@@ -3,7 +3,9 @@
 Personal crypto exit dashboard. The deliverable is **`index.html`** — one self-contained file
 (inline CSS + vanilla JS, no framework, no build, no dependencies) the user runs on his phone
 via Add to Home Screen, hosted over HTTPS. `sw.js` (app-shell service worker) is the one other
-real file — must stay a separate file, service workers cannot be inlined/data-URI'd.
+real file in the app — must stay a separate file, service workers cannot be inlined/data-URI'd.
+The `watchdog/` folder (Node, GitHub Actions only — never shipped to the phone, never touches
+`index.html`) is an optional off-device alerter; see "Watchdog" below.
 The old React/AI version (`exit-monitor-v2.jsx`) has been deleted — fully superseded, no need
 to reference it.
 
@@ -21,9 +23,10 @@ to reference it.
   `price sources`, `history:`, `calibration`, `on-chain valuation`, `regimes + hysteresis`,
   `STATE`, `FETCH ORCHESTRATOR`, `ENGINE`, `RENDER`, `EVENTS`. CSS/head (lines 1–92) rarely change.
 - **Validate with `node test/harness.js`** (41 offline checks, mocked network/DOM — must stay
-  green) and `node test/live.js` (real APIs, ~15 requests — use sparingly, it spends the
-  bitcoin-data daily quota). Don't rebuild mocks from scratch; extend harness.js.
-  `sw.js` has no logic to unit-test (pure cache plumbing) — `node --check sw.js` for syntax only.
+  green) and `node test/watchdog.js` (23 checks: alert logic + a live-engine `derive()` field
+  contract). Both use the shared mocks in `test/env.js` — don't rebuild mocks from scratch,
+  extend `env.js`. `node test/live.js` hits real APIs (~15 requests — use sparingly, spends the
+  bitcoin-data daily quota). `sw.js` has no logic to unit-test — `node --check sw.js` for syntax.
 - APIs below are verified working (2026-07-12) — don't re-test them unless something fails.
 
 ## Architecture (index.html)
@@ -64,9 +67,29 @@ to reference it.
   install, never had a successful load). Don't collapse `offline` into the `degraded`/low-
   confidence calculation — they're different concepts (staleness vs. source disagreement).
 
+## Watchdog (off-device alerter — `watchdog/` + `.github/workflows/watchdog.yml`)
+Optional. A GitHub Actions cron runs the **real** engine server-side and pushes a Telegram
+message when a rail trips / regime flips / exit verdict escalates or eases — so the user hears
+about a market event without opening the app. Does NOT modify `index.html` or the phone app.
+- **No engine drift**: `watchdog/engine.js` reads `index.html`, unwraps its outer IIFE at
+  runtime (no edit to the file), appends a hook exposing `state`/`derive`, and boots it in Node
+  against real APIs. Alert logic reads `derive()` output as structured data — never scrapes HTML.
+  If the `(function(){ … })();` wrapper shape changes, `engine.js` throws loudly (guarded).
+- `watchdog/alert.js` = pure `decideAlert(prev, cur)` (no I/O) — tier ladder RED>ORANGE>regime,
+  regime-flip, newly-tripped rails; never alerts when offline or <2 sources. `watchdog/check.js`
+  = glue (boot → snapshot → decide → Telegram). Telegram creds are **GitHub secrets**
+  (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) — never in client JS; missing creds → logs, no send.
+- **Quota**: cron is every 2h but cross-run state (engine localStorage incl. 48h regime memory +
+  API caches) persists via `actions/cache` under `watchdog/.state/` (gitignored), so bitcoin-data
+  stays cached 12h → ~2 cold fetches/day, under its 15/day. The runner's IP has its own quota,
+  separate from the phone's. Regime-flip alerts ride the engine's own 48h hysteresis (no extra
+  debounce). Cache loss just re-baselines silently (safe direction — never a false alert).
+- Validate: `node test/watchdog.js` (offline). Live smoke = run `watchdog/check.js` with
+  `WATCHDOG_STATE_DIR=<scratch>` (one real refresh, ~4 bitcoin-data reqs — sparingly).
+
 ## Backlog (agreed with user, not built)
-GitHub Pages setup walkthrough. Ideas raised but not committed to: watchdog cron (GitHub Actions
-+ Telegram alert on rail trip/regime flip), portfolio holdings → concrete order sizes, config
-export/import (QR or clipboard JSON).
+GitHub Pages setup walkthrough. Ideas raised but not committed to: portfolio holdings → concrete
+order sizes, config export/import (QR or clipboard JSON).
 (Phase 2 — backtest panel, σ lamp, divergence lamp — shipped 2026-07-12.
-Phase 3 — offline PWA: service worker + lastgood cache fallback — shipped 2026-07-12.)
+Phase 3 — offline PWA: service worker + lastgood cache fallback — shipped 2026-07-12.
+Phase 4 — watchdog cron + Telegram alerts — shipped 2026-07-12.)
