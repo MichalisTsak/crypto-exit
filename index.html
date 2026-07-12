@@ -1,0 +1,1016 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F1317">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Exit Monitor">
+<title>Exit Monitor</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230F1317'/%3E%3Cpath d='M8 20l5-6 4 3 7-9' fill='none' stroke='%23FFC24B' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230F1317'/%3E%3Cpath d='M44 112l30-34 22 16 40-50' fill='none' stroke='%23FFC24B' stroke-width='12' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Exit%20Monitor%22%2C%22short_name%22%3A%22Exit%20Monitor%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230F1317%22%2C%22theme_color%22%3A%22%230F1317%22%2C%22start_url%22%3A%22.%22%7D">
+
+<style>
+  :root{
+    --chassis:#0F1317; --panel:#181E24; --panelUp:#1F2730; --etch:#2B343D;
+    --text:#E9EEF3; --dim:#8C99A6; --faint:#5C6873;
+    --amber:#FFC24B; --green:#3ECF8E; --teal:#4FD1C5; --warn:#F5A742;
+    --orange:#F58742; --red:#F16D6D; --redDeep:#C0392B;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--chassis); color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .wrap{max-width:460px;margin:0 auto;padding:16px 12px 40px}
+  .mono{font-family:var(--mono)}
+  .row{display:flex;align-items:center;justify-content:space-between}
+  .muted{color:var(--dim)} .faint{color:var(--faint)}
+  .up{text-transform:uppercase;letter-spacing:.14em;font-size:11px;font-weight:600}
+
+  header .kick{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+  header .title{font-size:19px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+
+  button{font-family:inherit;cursor:pointer;border:none}
+  .btn{padding:7px 12px;border-radius:6px;font-size:11px;font-weight:700;letter-spacing:.08em;
+       text-transform:uppercase;background:var(--panelUp);border:1px solid var(--etch);color:var(--text)}
+  .btn.amber{color:var(--amber)}
+  .btn:disabled{color:var(--faint);background:var(--panel)}
+  .link{background:none;border:none;color:var(--amber);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 4px}
+
+  .card{background:var(--panel);border:1px solid var(--etch);border-radius:11px;overflow:hidden;margin-bottom:12px}
+  .card > .hd{display:flex;align-items:center;justify-content:space-between;padding:9px 12px}
+  .sub{border-top:1px solid var(--etch)}
+  .p12{padding:10px 12px}
+
+  .errbar{background:#2A1A1A;border:1px solid var(--redDeep);color:var(--red);
+          border-radius:11px;padding:10px 12px;margin-bottom:12px;font-size:13px}
+
+  .verdict{border-radius:11px;padding:16px;margin-bottom:12px;border:1px solid}
+  .verdict .big{font-weight:900;text-transform:uppercase;font-size:30px;line-height:1.05;letter-spacing:.02em;margin-top:4px}
+  .verdict .order{margin-top:8px;font-size:13px}
+  .track{position:relative;height:6px;border-radius:99px;background:var(--etch)}
+  .track .mid{position:absolute;top:0;bottom:0;left:50%;width:1px;background:var(--faint)}
+  .track .fill{position:absolute;top:0;bottom:0;border-radius:99px}
+  .track .dot{position:absolute;top:50%;width:9px;height:9px;border-radius:50%;transform:translate(-50%,-50%)}
+
+  .pill{padding:9px 12px;border-top:1px solid var(--etch)}
+  .pill .lab{font-size:14px;font-weight:500}
+  .pill .note{font-size:11.5px;color:var(--faint);margin-top:4px}
+
+  .lamp{display:flex;gap:11px;align-items:flex-start;padding:10px 12px;border-top:1px solid var(--etch)}
+  .lamp .dot{margin-top:3px;width:11px;height:11px;border-radius:3px;flex:none;border:1.5px solid var(--faint)}
+  .lamp .det{font-size:11.5px;color:var(--faint);margin-top:2px}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--etch)}
+  .grid2 > div{background:var(--panel);padding:11px 12px}
+  .big-num{font-size:21px;font-family:var(--mono);color:var(--amber);line-height:1.2}
+
+  .wl{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-top:1px solid var(--etch)}
+  .badge{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+
+  ol.lad{margin:10px 0 0;padding-left:18px;font-size:13px;color:var(--dim)}
+  ol.lad li{margin-bottom:6px}
+  ol.lad b{color:var(--text);font-weight:600}
+
+  label.nin{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0}
+  label.nin span.l{font-size:13px;color:var(--dim)}
+  label.nin .r{display:flex;align-items:center;gap:5px}
+  label.nin .pfx{font-size:11px;color:var(--faint)}
+  input[type=number]{width:104px;text-align:right;padding:6px 8px;border-radius:6px;
+    background:var(--chassis);border:1px solid var(--etch);color:var(--amber);font-family:var(--mono);font-size:13px}
+  input[type=number]:focus{outline:none;border-color:var(--amber)}
+
+  .foot{font-size:11.5px;line-height:1.6;color:var(--faint);padding:2px 4px 10px}
+  .tag{font-size:11px;color:var(--faint);font-family:var(--mono)}
+</style>
+
+<div id="root" class="wrap"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- palette (for inline dynamic colors) ----------
+  const C = { text:"#E9EEF3", dim:"#8C99A6", faint:"#5C6873", amber:"#FFC24B",
+    green:"#3ECF8E", teal:"#4FD1C5", warn:"#F5A742", orange:"#F58742", red:"#F16D6D" };
+
+  const DEFAULT_TH = { caution:52000, structural:48000, capitulation:42000, velocity:-12 };
+
+  const COINS = [
+    { id:"bitcoin",      base:"BTC",    sym:"BTC",    name:"Bitcoin",       core:true },
+    { id:"ethereum",     base:"ETH",    sym:"ETH",    name:"Ethereum",      core:true },
+    { id:"solana",       base:"SOL",    sym:"SOL",    name:"Solana",        floorKey:"sol" },
+    { id:"near",         base:"NEAR",   sym:"NEAR",   name:"NEAR Protocol", floorKey:"near" },
+    { id:"bittensor",    base:"TAO",    sym:"TAO",    name:"Bittensor",     floorKey:"tao" },
+    { id:"sui",          base:"SUI",    sym:"SUI",    name:"Sui",           floorKey:"sui" },
+    { id:"render-token", base:"RENDER", sym:"RENDER", name:"Render",        floorKey:"render" },
+  ];
+
+  // ---------- format / math ----------
+  const fmtPrice = (n) => {
+    if (n == null || isNaN(n) || n === "") return "—";
+    n = +n;
+    if (n >= 1000) return n.toLocaleString("en-US",{maximumFractionDigits:0});
+    if (n >= 1)    return n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    return n.toLocaleString("en-US",{minimumFractionDigits:3,maximumFractionDigits:4});
+  };
+  const fmtPct = (n) => (n == null || isNaN(n) ? "—" : (n>0?"+":"") + (+n).toFixed(1) + "%");
+  const fmt1   = (n) => (n == null || isNaN(n) ? "—" : (+n).toFixed(1));
+  const clamp  = (v,lo,hi) => Math.max(lo,Math.min(hi,v));
+  const round3 = (x) => +(x).toPrecision(3);
+  const tn = (x,def) => (x!=="" && x!=null && isFinite(+x)) ? +x : def;      // number or default
+  const nOrNull = (x) => (x!=="" && x!=null && isFinite(+x)) ? +x : null;
+  const ord = (n)=>{ const v=n%100, s=["th","st","nd","rd"]; return n+(s[(v-20)%10]||s[v]||s[0]); };
+  function median(a){ const s=a.slice().sort((x,y)=>x-y); const m=Math.floor(s.length/2);
+    return s.length%2 ? s[m] : (s[m-1]+s[m])/2; }
+  const sma = (arr,n) => (arr && arr.length>=n ? arr.slice(-n).reduce((a,b)=>a+b,0)/n : null);
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+  function rsi(closes, period=14){
+    if(!closes || closes.length < period+1) return null;
+    let g=0,l=0;
+    for(let i=1;i<=period;i++){ const d=closes[i]-closes[i-1]; if(d>0) g+=d; else l-=d; }
+    let ag=g/period, al=l/period;
+    for(let i=period+1;i<closes.length;i++){ const d=closes[i]-closes[i-1];
+      ag=(ag*(period-1)+Math.max(d,0))/period; al=(al*(period-1)+Math.max(-d,0))/period; }
+    if(al===0) return 100;
+    return 100 - 100/(1+ag/al);
+  }
+
+  // ---------- storage ----------
+  const lsGet = (k)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } };
+  const lsSet = (k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ return false; } };
+
+  // ---------- network ----------
+  const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
+  async function getJson(url, tries=2, timeoutMs=8000){
+    let lastErr;
+    for(let i=0;i<tries;i++){
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), timeoutMs);
+      try{
+        const res = await fetch(url,{signal:ctrl.signal});
+        clearTimeout(t);
+        if(res.ok) return await res.json();
+        lastErr = new Error("HTTP "+res.status);
+        if(i<tries-1) await sleep(res.status===429 ? 2000 : 800);
+      }catch(e){ clearTimeout(t); lastErr=e; if(i<tries-1) await sleep(800); }
+    }
+    throw lastErr;
+  }
+
+  // ---------- price sources (each returns {SYM:{price,ch24?}}) ----------
+  async function srcOKX(){
+    const j = await getJson("https://www.okx.com/api/v5/market/tickers?instType=SPOT",1,8000);
+    const want={}; COINS.forEach(c=>want[c.base+"-USDT"]=c.sym);
+    const out={};
+    for(const r of (j&&j.data)||[]){
+      const sym=want[r.instId]; if(!sym) continue;
+      const price=parseFloat(r.last), open=parseFloat(r.open24h);
+      if(price>0) out[sym]={price, ch24: open>0 ? (price-open)/open*100 : null};
+    }
+    return out;
+  }
+  async function srcBinance(){
+    const syms = COINS.map(c=>c.base+"USDT");
+    const q = encodeURIComponent(JSON.stringify(syms));
+    // data-api.binance.vision mirror: same REST, less geo-restricted, CORS-open
+    const rows = await getJson("https://data-api.binance.vision/api/v3/ticker/24hr?symbols="+q,1,8000);
+    const map={}; COINS.forEach(c=>map[c.base+"USDT"]=c.sym);
+    const out={};
+    for(const r of rows||[]){ const sym=map[r.symbol]; if(!sym) continue;
+      const price=parseFloat(r.lastPrice); if(price>0) out[sym]={price, ch24:parseFloat(r.priceChangePercent)}; }
+    return out;
+  }
+  async function srcCoinbase(){
+    const out={};
+    await Promise.all(COINS.filter(c=>c.base!=="TAO").map(async c=>{
+      try{ const j=await getJson("https://api.coinbase.com/v2/prices/"+c.base+"-USD/spot",1,7000);
+           const p=parseFloat(j&&j.data&&j.data.amount); if(p>0) out[c.sym]={price:p}; }catch(e){}
+    }));
+    return out;
+  }
+  async function srcKucoin(){
+    const j = await getJson("https://api.kucoin.com/api/v1/market/allTickers",1,8000);
+    const map={}; COINS.forEach(c=>map[c.base+"-USDT"]=c.sym);
+    const out={};
+    for(const t of (j&&j.data&&j.data.ticker)||[]){ const sym=map[t.symbol]; if(!sym) continue;
+      const p=parseFloat(t.last); if(p>0) out[sym]={price:p, ch24: t.changeRate!=null ? parseFloat(t.changeRate)*100 : null}; }
+    return out;
+  }
+
+  function aggregate(results){
+    const coins={}, quality={};
+    for(const c of COINS){
+      const prices=[], ch24s=[];
+      for(const res of results){ const d=res && res[c.sym];
+        if(d && isFinite(d.price) && d.price>0){ prices.push(d.price); if(d.ch24!=null && isFinite(d.ch24)) ch24s.push(d.ch24); } }
+      if(!prices.length){ coins[c.sym]={price:null}; quality[c.sym]={n:0,spread:0}; continue; }
+      const med = median(prices);
+      const spread = prices.length>1 ? (Math.max.apply(null,prices)-Math.min.apply(null,prices))/med : 0;
+      coins[c.sym] = { price:med, ch24: ch24s.length ? median(ch24s) : null };
+      quality[c.sym] = { n:prices.length, spread };
+    }
+    return { coins, quality };
+  }
+
+  // ---------- history: full BTC daily closes since 2017 (incrementally cached) ----------
+  const GENESIS = 1502928000000; // Binance BTCUSDT daily data starts 2017-08-17
+  const WEEK0   = 345600000;     // first Monday after epoch — Monday-based weekly buckets (matches exchange 1w)
+
+  async function binRange(startTime){
+    const out=[]; let st=startTime;
+    for(let i=0;i<12;i++){
+      const r = await getJson("https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1000&startTime="+st,1,10000);
+      if(!Array.isArray(r) || !r.length) break;
+      for(const x of r){ const c=parseFloat(x[4]); if(isFinite(c)&&c>0) out.push([+x[0], c]); }
+      if(r.length<1000) break;
+      st = +r[r.length-1][0] + 86400000;
+    }
+    return out;
+  }
+  async function cbRange(startTime){
+    const out=[]; let st=startTime; const now=Date.now();
+    while(st < now){
+      const end = Math.min(st + 300*86400000, now + 86400000);
+      const j = await getJson("https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=86400&start="+encodeURIComponent(new Date(st).toISOString())+"&end="+encodeURIComponent(new Date(end).toISOString()),1,10000);
+      if(Array.isArray(j)) for(const x of j.slice().reverse()){ const c=parseFloat(x[4]); if(isFinite(c)&&c>0) out.push([x[0]*1000, c]); }
+      st = end;
+    }
+    return out;
+  }
+  // short single-shot fallbacks — enough for MAs/RSI, not enough to calibrate percentiles
+  async function dOKX(){ const j=await getJson("https://www.okx.com/api/v5/market/candles?instId=BTC-USDT&bar=1D&limit=300",1,8000);
+    return ((j&&j.data)||[]).map(x=>parseFloat(x[4])).filter(isFinite).reverse(); }
+  async function dKraken(){ const j=await getJson("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440",1,8000);
+    const arr=Object.values((j&&j.result)||{}).find(Array.isArray)||[]; return arr.map(x=>parseFloat(x[4])).filter(isFinite); }
+
+  async function getHistory(){
+    try{ localStorage.removeItem("exitmon2:hist"); }catch(e){}   // retire the old 1-year cache
+    const cache = lsGet("exitmon2:histv2");
+    let days = (cache && Array.isArray(cache.days) && cache.days.length>=400) ? cache.days : null;
+    if(days && cache.ts && Date.now()-cache.ts < 6*3600*1000) return { days, status:"cached" };
+    let add=null;
+    try{ add = await binRange(days ? days[days.length-1][0] : GENESIS); }catch(e){}
+    if((!add || !add.length) && !days){ try{ add = await cbRange(GENESIS); }catch(e){} }
+    if(add && add.length){
+      const map = new Map(days||[]);
+      for(const pr of add) map.set(pr[0], pr[1]);
+      days = Array.from(map.entries()).sort((a,b)=>a[0]-b[0]);
+      lsSet("exitmon2:histv2",{ ts:Date.now(), days });
+      return { days, status:"live" };
+    }
+    if(days) return { days, status:"stale" };
+    for(const fn of [dOKX,dKraken]){   // last resort: short, uncalibrated
+      try{ const a=await fn(); if(a && a.length>=210){
+        const t0=Date.now()-(a.length-1)*86400000;
+        return { days:a.map((c,i)=>[t0+i*86400000,c]), status:"short" };
+      }}catch(e){}
+    }
+    return { days:null, status:"fail" };
+  }
+
+  function weeklyFromDays(days){
+    const out=[]; let cur=null;
+    for(const pr of days){ const wk=Math.floor((pr[0]-WEEK0)/604800000);
+      if(wk!==cur){ out.push(pr[1]); cur=wk; } else out[out.length-1]=pr[1]; }
+    return out;
+  }
+
+  function computeInd(closesIn, weeklyIn, live){
+    if(!closesIn || closesIn.length<210) return {};
+    const closes = closesIn.slice();
+    if(live) closes[closes.length-1] = live;   // pin last close to live median
+    let weekly = (weeklyIn && weeklyIn.length) ? weeklyIn.slice() : [];
+    const weeklyReal = weekly.length>=15;
+    if(weeklyReal && live) weekly[weekly.length-1] = live;
+    if(!weeklyReal){ const wp=[]; for(let i=closes.length-1;i>=0;i-=7) wp.unshift(closes[i]); weekly=wp; }
+    const ma50  = sma(closes,50);
+    const ma200 = sma(closes,200);
+    const ma200prev = sma(closes.slice(0,-10),200);
+    const price = closes[closes.length-1];
+    const last90 = closes.slice(-90), prev90 = closes.slice(-180,-90);
+    const minL = Math.min.apply(null,last90), minP = Math.min.apply(null,prev90);
+    let structure=0; if(minL>minP*1.02) structure=2; else if(minL<minP*0.98) structure=-2;
+    const distMA  = (ma200!=null&&price!=null)?(price-ma200)/ma200:null;
+    const maSlope = (ma200!=null&&ma200prev!=null)?(ma200-ma200prev)/ma200prev:null;
+    const rets=[]; for(let i=Math.max(1,closes.length-90);i<closes.length;i++) rets.push(closes[i]/closes[i-1]-1);
+    let sigmaD=null;
+    if(rets.length>=30){ const mu=rets.reduce((a,b)=>a+b,0)/rets.length;
+      sigmaD = Math.sqrt(rets.reduce((a,b)=>a+(b-mu)*(b-mu),0)/(rets.length-1)) || null; }
+    return {
+      ma50, ma200, ma200w: sma(weekly,200), distMA, maSlope, sigmaD,
+      mayer: (ma200!=null&&price!=null) ? price/ma200 : null,
+      cross: (ma50!=null&&ma200!=null) ? (ma50>=ma200?"golden":"death") : null,
+      rsiD: rsi(closes.slice(-120),14), rsiW: rsi(weekly,14),
+      structure, weeklyReal,
+    };
+  }
+
+  // ---------- calibration: score today's reading against its own multi-year distribution ----------
+  function rsiSeries(closes, period=14){
+    const out=[];
+    if(!closes || closes.length<period+1) return out;
+    let g=0,l=0;
+    for(let i=1;i<=period;i++){ const d=closes[i]-closes[i-1]; if(d>0) g+=d; else l-=d; }
+    let ag=g/period, al=l/period;
+    out.push(al===0?100:100-100/(1+ag/al));
+    for(let i=period+1;i<closes.length;i++){ const d=closes[i]-closes[i-1];
+      ag=(ag*(period-1)+Math.max(d,0))/period; al=(al*(period-1)+Math.max(-d,0))/period;
+      out.push(al===0?100:100-100/(1+ag/al)); }
+    return out;
+  }
+  function pctile(sorted, x){
+    if(!sorted || !sorted.length || x==null || !isFinite(x)) return null;
+    let lo=0, hi=sorted.length;
+    while(lo<hi){ const m=(lo+hi)>>1; if(sorted[m]<=x) lo=m+1; else hi=m; }
+    return lo/sorted.length*100;
+  }
+  function buildCalib(closes, weekly){
+    if(!closes || closes.length<1500) return null;   // need multiple cycles for honest percentiles
+    const n=closes.length, cum=new Array(n+1); cum[0]=0;
+    for(let i=0;i<n;i++) cum[i+1]=cum[i]+closes[i];
+    const mayer=[];
+    for(let i=199;i<n;i++) mayer.push(closes[i]*200/(cum[i+1]-cum[i-199]));
+    return {
+      mayer: mayer.sort((a,b)=>a-b),
+      rsiW: rsiSeries(weekly,14).sort((a,b)=>a-b),
+      years: Math.round(n/365),
+    };
+  }
+
+  // ---------- divergence: price higher high while weekly RSI makes a lower high ----------
+  function bearishDivergence(weeklyIn){
+    const w = weeklyIn ? weeklyIn.slice(0,-1) : [];   // completed weeks only — no intra-week flapping
+    if(w.length < 30) return null;
+    const rs = rsiSeries(w,14);                       // rs[k] ↔ w[k+14]
+    const peaks=[];
+    for(let j=Math.max(w.length-52, 17); j<w.length-3; j++){
+      let pk=true;
+      for(let k=1;k<=3;k++){ if(w[j]<=w[j-k] || w[j]<=w[j+k]){ pk=false; break; } }
+      if(pk) peaks.push(j);
+    }
+    if(peaks.length<2) return { div:false };
+    const j1=peaks[peaks.length-2], j2=peaks[peaks.length-1];
+    const r1=rs[j1-14], r2=rs[j2-14];
+    if(r1==null || r2==null) return { div:false };
+    const div = w[j2] >= w[j1]*1.02 && r2 <= r1-3 && r1 >= 60;
+    return { div, wksAgo: w.length-1-j2, r1:Math.round(r1), r2:Math.round(r2) };
+  }
+
+  // ---------- backtest: replay the pillar engine over every historical day ----------
+  // In-sample by design (percentiles use the full distribution) — disclosed in the UI.
+  // Weekly values use the last COMPLETED week (no lookahead); V replays from MVRV Z only.
+  function buildBacktest(days, weekly, fngMap, zMap){
+    if(!days || days.length<600 || !weekly || weekly.length<20) return null;
+    const n=days.length, closes=days.map(x=>x[1]);
+    const cum=new Array(n+1); cum[0]=0;
+    for(let i=0;i<n;i++) cum[i+1]=cum[i]+closes[i];
+    const smaAt=(i,p)=> (i+1>=p ? (cum[i+1]-cum[i+1-p])/p : null);
+    const wkPos=new Array(n);
+    { let cur=null,pos=-1;
+      for(let i=0;i<n;i++){ const wk=Math.floor((days[i][0]-WEEK0)/604800000); if(wk!==cur){cur=wk;pos++;} wkPos[i]=pos; } }
+    const wser=rsiSeries(weekly,14), wsorted=wser.slice().sort((a,b)=>a-b);
+    const wcum=new Array(weekly.length+1); wcum[0]=0;
+    for(let k=0;k<weekly.length;k++) wcum[k+1]=wcum[k]+weekly[k];
+    const minL=new Array(n).fill(null);
+    for(let i=89;i<n;i++){ let mn=Infinity; for(let k=i-89;k<=i;k++) if(closes[k]<mn) mn=closes[k]; minL[i]=mn; }
+    const bands=[
+      { label:"≤ −1.0 · strong bearish read", lo:-Infinity, hi:-1.0 },
+      { label:"−1.0 … −0.5 · bearish read",   lo:-1.0,      hi:-0.5 },
+      { label:"−0.5 … +0.5 · neutral read",   lo:-0.5,      hi: 0.5 },
+      { label:"+0.5 … +1.0 · bullish read",   lo: 0.5,      hi: 1.0 },
+      { label:"≥ +1.0 · strong bullish read", lo: 1.0,      hi: Infinity },
+    ].map(b=>({ ...b, f30:[], f90:[] }));
+    let lastF=null,lastFi=-99,lastZ=null,lastZi=-99, usedDays=0, firstI=null;
+    for(let i=209;i<n-90;i++){
+      const dn=Math.floor(days[i][0]/86400000);
+      if(fngMap && fngMap[dn]!=null){ lastF=fngMap[dn]; lastFi=i; }
+      if(zMap && zMap[dn]!=null){ lastZ=zMap[dn]; lastZi=i; }
+      const F=(lastF!=null && i-lastFi<=3)?lastF:null;
+      const Z=(lastZ!=null && i-lastZi<=3)?lastZ:null;
+      const price=closes[i], ma200=smaAt(i,200), ma50=smaAt(i,50);
+      let T=null;
+      if(ma200!=null){
+        const dist=(price-ma200)/ma200, golden=ma50!=null&&ma50>=ma200;
+        if(Math.abs(dist)<0.02) T=0;
+        else if(dist>=0.02&&dist<0.08) T=golden?2:1;
+        else if(dist>=0.08) T=2;
+        else if(dist<=-0.02&&dist>-0.08) T=golden?-1:-2;
+        else T=-2;
+      }
+      let M=null; const wp=wkPos[i];
+      if(wp>=15 && wp-15<wser.length && wsorted.length>=100){
+        const mp=pctile(wsorted, wser[wp-15]);
+        M = mp<10?-2 : mp<30?-1 : mp<=70?0 : mp<=90?1 : 2;
+      }
+      let V=null;
+      if(Z!=null){ V=zMvrv(Z);
+        if(wp>=200){ const m200w=(wcum[wp]-wcum[wp-200])/200; if(price<m200w) V=clamp(V+1,-2,2); } }
+      let S=null; if(F!=null) S = F<20?2:F<35?1:F<=60?0:F<=75?-1:-2;
+      let St=null;
+      if(i>=179){ const mL=minL[i], mP=minL[i-90]; St = mL>mP*1.02?2 : mL<mP*0.98?-2 : 0; }
+      const parts=[[T,30],[M,20],[V,25],[S,15],[St,10]].filter(x=>x[0]!=null);
+      if(!parts.length) continue;
+      const comp=parts.reduce((a,x)=>a+x[0]*x[1],0)/parts.reduce((a,x)=>a+x[1],0);
+      const b=bands.find(x=>comp>x.lo && comp<=x.hi);
+      b.f30.push(closes[i+30]/price-1); b.f90.push(closes[i+90]/price-1);
+      usedDays++; if(firstI==null) firstI=i;
+    }
+    if(!usedDays) return null;
+    const rows=bands.map(b=>({ label:b.label, lo:b.lo, hi:b.hi, n:b.f90.length,
+      med30: b.f30.length?median(b.f30):null, med90: b.f90.length?median(b.f90):null,
+      up90: b.f90.length ? b.f90.filter(x=>x>0).length/b.f90.length*100 : null }));
+    return { rows, usedDays, fromYear: new Date(days[firstI][0]).getUTCFullYear(),
+      hasV: !!zMap, hasS: !!fngMap };
+  }
+
+  // ---------- fear & greed, fx ----------
+  async function getFng(){
+    try{
+      const j=await getJson("https://api.alternative.me/fng/?limit=30",1,7000);
+      const arr=((j&&j.data)||[]).map(d=>parseInt(d.value,10)).filter(n=>!isNaN(n));
+      if(!arr.length) return null;
+      let trend=null;
+      if(arr.length>=14){ const recent=arr.slice(0,7).reduce((a,b)=>a+b,0)/7, prior=arr.slice(7,14).reduce((a,b)=>a+b,0)/7; trend=recent-prior; }
+      return { fng:arr[0], trend };
+    }catch(e){ return null; }
+  }
+  async function getFx(){
+    const cache=lsGet("exitmon2:fx");
+    if(cache && cache.rate && Date.now()-cache.ts < 24*3600*1000) return cache.rate;
+    const tries=[
+      async()=>{ const j=await getJson("https://api.frankfurter.app/latest?from=USD&to=EUR",1,7000); return j&&j.rates&&j.rates.EUR; },
+      async()=>{ const j=await getJson("https://open.er-api.com/v6/latest/USD",1,7000); return j&&j.rates&&j.rates.EUR; },
+      async()=>{ const j=await getJson("https://api.exchangerate.host/latest?base=USD&symbols=EUR",1,7000); return j&&j.rates&&j.rates.EUR; },
+    ];
+    for(const t of tries){ try{ const r=await t(); if(r && isFinite(r)){ lsSet("exitmon2:fx",{ts:Date.now(),rate:r}); return r; } }catch(e){} }
+    return cache && cache.rate ? cache.rate : null;
+  }
+
+  // ---------- historical series for the backtest (both cached 7 days) ----------
+  async function getFngHist(){
+    const cache = lsGet("exitmon2:fnghist");
+    if(cache && cache.ts && Date.now()-cache.ts < 7*24*3600*1000) return cache.map;
+    try{
+      const j = await getJson("https://api.alternative.me/fng/?limit=0",1,15000);
+      const map = {};
+      for(const r of (j&&j.data)||[]){ const dn=Math.floor(parseInt(r.timestamp,10)/86400), v=parseInt(r.value,10);
+        if(isFinite(dn)&&isFinite(v)) map[dn]=v; }
+      if(Object.keys(map).length>100){ lsSet("exitmon2:fnghist",{ts:Date.now(),map}); return map; }
+    }catch(e){}
+    return cache ? cache.map : null;
+  }
+  async function getMvrvHist(){
+    const cache = lsGet("exitmon2:mvrvhist");
+    if(cache && cache.ts && Date.now()-cache.ts < 7*24*3600*1000) return cache.map;
+    try{
+      const j = await getJson("https://bitcoin-data.com/v1/mvrv-zscore",1,20000);
+      const map = {};
+      for(const r of (Array.isArray(j)?j:[])){ const dn=Math.floor(Date.parse(r.d)/86400000), z=+r.mvrvZscore;
+        if(isFinite(dn)&&isFinite(z)) map[dn]=z; }
+      if(Object.keys(map).length>100){ lsSet("exitmon2:mvrvhist",{ts:Date.now(),map}); return map; }
+    }catch(e){}
+    return cache ? cache.map : null;
+  }
+
+  // best-effort 7d for alts (BTC 7d comes from history). Never blocks a read.
+  async function enrichCG(coins){
+    try{
+      const ids=COINS.map(c=>c.id).join(",");
+      const rows=await getJson("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids="+ids+"&price_change_percentage=7d",1,7000);
+      for(const r of rows||[]){ const c=COINS.find(x=>x.id===r.id); if(!c) continue; const d=coins[c.sym];
+        if(d && d.ch7==null) d.ch7 = r.price_change_percentage_7d_in_currency ?? null; }
+    }catch(e){}
+  }
+
+  // ---------- on-chain valuation (bitcoin-data.com — free, keyless, CORS-open; 15 req/day, so cache hard) ----------
+  async function getOnchain(){
+    const cache = lsGet("exitmon2:onchain");
+    if(cache && cache.ts && Date.now()-cache.ts < 12*3600*1000) return cache;
+    if(cache && cache.tryTs && Date.now()-cache.tryTs < 10*60*1000) return cache;  // recent failure — back off
+    const out={ ts:null, tryTs:Date.now(), mvrvZ:null, nupl:null, puell:null, d:null };
+    try{ const j=await getJson("https://bitcoin-data.com/v1/mvrv-zscore/last",1,8000);
+      if(j && isFinite(+j.mvrvZscore)){ out.mvrvZ=+j.mvrvZscore; out.d=j.d||null; } }catch(e){}
+    try{ const j=await getJson("https://bitcoin-data.com/v1/nupl/last",1,8000);
+      if(j && isFinite(+j.nupl)) out.nupl=+j.nupl; }catch(e){}
+    try{ const j=await getJson("https://bitcoin-data.com/v1/puell-multiple/last",1,8000);
+      if(j && isFinite(+j.puellMultiple)) out.puell=+j.puellMultiple; }catch(e){}
+    if(out.mvrvZ!=null){ out.ts=Date.now(); lsSet("exitmon2:onchain",out); return out; }
+    if(cache){ cache.tryTs=out.tryTs; lsSet("exitmon2:onchain",cache); return cache; }
+    lsSet("exitmon2:onchain",out); return out;
+  }
+  // standard published zone bands for each metric (cheap = +2 … expensive = −2)
+  const zMvrv  = (z)=> z<0?2 : z<1?1 : z<=3?0 : z<=5?-1 : -2;
+  const zNupl  = (x)=> x<0?2 : x<0.25?1 : x<=0.5?0 : x<=0.75?-1 : -2;
+  const zPuell = (x)=> x<0.5?2 : x<1?1 : x<=2?0 : x<=4?-1 : -2;
+
+  // ---------- regimes + hysteresis (a new read must hold 48h before the label switches) ----------
+  const REGIMES = {
+    NEUTRAL:  { key:"NEUTRAL",  name:"Neutral / Chop",            color:C.dim,    order:"No edge either way. Standard weekly buys — nothing clever." },
+    EUPHORIA: { key:"EUPHORIA", name:"Euphoria / Top zone",       color:C.warn,   order:"Top-zone markers flashing. Open the take-profit ladder — this is where the plan sells, not buys." },
+    DEEPVALUE:{ key:"DEEPVALUE",name:"Capitulation / Deep value", color:C.green,  order:"Cycle-bottom conditions. Keep the weekly buys; consider the dip tranche. Rails below are your invalidation." },
+    BULL:     { key:"BULL",     name:"Bull trend",                color:C.green,  order:"Uptrend intact. Keep the DCA, stop adding to laggards, let winners run." },
+    RECOVERY: { key:"RECOVERY", name:"Early recovery",            color:C.teal,   order:"Bottom pattern forming. Full-size buys; a 200D MA reclaim confirms it." },
+    BEAR:     { key:"BEAR",     name:"Bear trend",                color:C.orange, order:"Downtrend, not yet deep value. Half-size buys; let the rails guard the floor." },
+  };
+  const CONFIRM_MS = 48*3600*1000;
+  let regimeMem = lsGet("exitmon2:regime") || { cur:null, since:null, pending:null, pendingSince:null };
+  function resolveRegime(rawKey, confident){
+    const now=Date.now(), m=regimeMem;
+    if(!confident) return (m.cur && REGIMES[m.cur]) ? m.cur : rawKey;   // degraded read: hold, don't learn
+    if(m.cur==null || !REGIMES[m.cur]){ regimeMem={cur:rawKey,since:now,pending:null,pendingSince:null}; lsSet("exitmon2:regime",regimeMem); return rawKey; }
+    if(rawKey===m.cur){
+      if(m.pending!=null){ regimeMem={cur:m.cur,since:m.since,pending:null,pendingSince:null}; lsSet("exitmon2:regime",regimeMem); }
+      return m.cur;
+    }
+    if(m.pending!==rawKey){ regimeMem={cur:m.cur,since:m.since,pending:rawKey,pendingSince:now}; lsSet("exitmon2:regime",regimeMem); return m.cur; }
+    if(now-m.pendingSince >= CONFIRM_MS){ regimeMem={cur:rawKey,since:now,pending:null,pendingSince:null}; lsSet("exitmon2:regime",regimeMem); return rawKey; }
+    return m.cur;
+  }
+
+  // ================= STATE =================
+  const state = {
+    loading:true, error:null, source:null, updated:null,
+    coins:{}, ind:{}, quality:{}, fng:null, fngTrend:null,
+    ccy:"EUR", fx:null, onchain:null, calib:null, histDays:0, backtest:null,
+    th:{...DEFAULT_TH}, floors:null, metrics:{ mvrvZ:null, ma200w:null, ts:null },
+    srcStatus:{}, saveMsg:"",
+    ui:{ rails:false, exit:false, profit:false, config:false, evidence:false },
+  };
+
+  function loadPrefs(){
+    const cfg = lsGet("exitmon2:cfg");
+    if(cfg){ if(cfg.th) state.th={...DEFAULT_TH,...cfg.th}; if(cfg.floors) state.floors=cfg.floors; if(cfg.metrics) state.metrics={...state.metrics,...cfg.metrics}; }
+    const ccy = lsGet("exitmon2:ccy"); if(ccy==="USD"||ccy==="EUR") state.ccy=ccy;
+    const fx  = lsGet("exitmon2:fx");  if(fx && fx.rate) state.fx=fx.rate;
+  }
+  function persist(){ return lsSet("exitmon2:cfg",{ th:state.th, floors:state.floors, metrics:state.metrics }); }
+
+  // ================= FETCH ORCHESTRATOR =================
+  async function refresh(){
+    state.loading=true; state.error=null; render();
+    const settled = await Promise.allSettled([ srcOKX(), srcBinance(), srcCoinbase(), srcKucoin(), getFng(), getFx(), getOnchain(), getFngHist(), getMvrvHist() ]);
+    const [okx,bin,cb,ku,fngR,fxR,ocR,fngHistR,zHistR] = settled;
+    const priceRes = [okx,bin,cb,ku].map(r=>r.status==="fulfilled"?r.value:null);
+    const { coins, quality } = aggregate(priceRes);
+
+    if(!coins.BTC || coins.BTC.price==null){
+      state.loading=false;
+      state.error="All price sources are unreachable right now. Check your connection and tap Refresh.";
+      render(); return;
+    }
+
+    if(fxR.status==="fulfilled" && fxR.value!=null) state.fx=fxR.value;
+    if(fngR.status==="fulfilled" && fngR.value){ state.fng=fngR.value.fng; state.fngTrend=fngR.value.trend; state.srcStatus.fng="ok"; }
+    else { state.srcStatus.fng="fail"; }
+    if(ocR.status==="fulfilled" && ocR.value) state.onchain=ocR.value;
+
+    const hist = await getHistory();
+    state.srcStatus.chart = hist.status;
+    const closes = hist.days ? hist.days.map(x=>x[1]) : null;
+    const weekly = hist.days ? weeklyFromDays(hist.days) : null;
+    state.histDays = closes ? closes.length : 0;
+    state.calib = buildCalib(closes, weekly);
+    state.backtest = buildBacktest(hist.days, weekly,
+      fngHistR.status==="fulfilled"?fngHistR.value:null,
+      zHistR.status==="fulfilled"?zHistR.value:null);
+    const ind = computeInd(closes, weekly, coins.BTC.price);
+    ind.divergence = weekly ? bearishDivergence(weekly) : null;
+
+    if(closes && closes.length>8){
+      const n=closes.length, live=coins.BTC.price;
+      coins.BTC.ch7 = ((live-closes[n-8])/closes[n-8])*100;
+      if(coins.BTC.ch24==null) coins.BTC.ch24 = ((live-closes[n-2])/closes[n-2])*100;
+      const hi = Math.max(live, Math.max.apply(null,closes));
+      coins.BTC.athPct = ((live-hi)/hi)*100; // negative
+      ind.ddProxy = closes.length>=1500 ? "cycle" : "1y";
+      if(ind.sigmaD && coins.BTC.ch7!=null) ind.sigma7 = (coins.BTC.ch7/100)/(ind.sigmaD*Math.sqrt(7));
+    }
+
+    await enrichCG(coins); // alt 7d best-effort
+
+    if(!state.floors){
+      const nf={}; for(const c of COINS){ if(!c.floorKey) continue; const p=coins[c.sym]&&coins[c.sym].price; nf[c.floorKey]= p? round3(p*0.72):0; }
+      state.floors=nf; persist();
+    }
+
+    state.coins=coins; state.ind=ind; state.quality=quality;
+    state.updated=Date.now();
+    const okCount = quality.BTC.n;
+    state.source = okCount + " exchange" + (okCount>1?"s":"");
+    state.loading=false;
+    render();
+  }
+
+  // ================= ENGINE (pillars / regime / rails / verdict) =================
+  function derive(){
+    const th = state.th, metrics = state.metrics, ind = state.ind, coins = state.coins, floors = state.floors;
+    const btc = coins.BTC || {};
+    const p = btc.price;
+    const sym = (state.ccy==="EUR" && state.fx!=null) ? "€" : "$";
+    const disp = (usd)=> (usd==null ? null : (state.ccy==="EUR" && state.fx!=null ? usd*state.fx : usd));
+
+    const cautionV = tn(th.caution, DEFAULT_TH.caution);
+    const structV  = tn(th.structural, DEFAULT_TH.structural);
+    const capV     = tn(th.capitulation, DEFAULT_TH.capitulation);
+    const veloV    = tn(th.velocity, DEFAULT_TH.velocity);
+
+    const maRel = (ind.ma200!=null && p!=null) ? (p>=ind.ma200?"above":"below") : null;
+    const dd = btc.athPct!=null ? -btc.athPct : null;
+    const ddLabel = dd!=null ? ("−"+dd.toFixed(0)+"% from "+(ind.ddProxy==="1y"?"1y high":"cycle high")) : null;
+    const calib = state.calib;
+
+    let T=null,M=null,V=null,S=null,St=null, trendNote=null, mNote=null, vNote=null;
+
+    if(ind.distMA!=null){
+      const d=ind.distMA, golden=ind.cross==="golden";
+      if(Math.abs(d)<0.02) T=0;
+      else if(d>=0.02 && d<0.08) T=golden?2:1;
+      else if(d>=0.08) T=2;
+      else if(d<=-0.02 && d>-0.08) T=golden?-1:-2;
+      else T=-2;
+      const slopeTxt = ind.maSlope==null?"":(ind.maSlope>0.005?", rising":ind.maSlope<-0.005?", falling":", flat");
+      const stretchPct = (calib && ind.mayer!=null) ? pctile(calib.mayer, ind.mayer) : null;
+      trendNote = (d*100).toFixed(1)+"% "+(d>=0?"above":"below")+" 200D MA"+slopeTxt+(ind.cross?" · "+ind.cross:"")+
+        (stretchPct!=null ? " · stretch "+ord(Math.round(stretchPct))+" pctile ("+calib.years+"y)" : "");
+    }
+
+    if(ind.rsiW!=null){
+      if(calib && calib.rsiW.length>=100){
+        const mp = pctile(calib.rsiW, ind.rsiW);
+        M = mp<10?-2 : mp<30?-1 : mp<=70?0 : mp<=90?1 : 2;
+        mNote = "weekly RSI "+fmt1(ind.rsiW)+" · "+ord(Math.round(mp))+" pctile ("+calib.years+"y) · daily "+fmt1(ind.rsiD);
+      } else {
+        const w=ind.rsiW; M = w<30?-2:w<45?-1:w<=55?0:w<=70?1:2;
+        mNote = "weekly RSI "+fmt1(ind.rsiW)+" · daily "+fmt1(ind.rsiD)+(ind.weeklyReal?"":" (proxy)")+" · uncalibrated";
+      }
+    }
+
+    const ma200w = ind.ma200w!=null ? ind.ma200w : nOrNull(metrics.ma200w);
+    const oc = state.onchain;
+    const ocAge = oc && oc.ts ? (Date.now()-oc.ts)/86400000 : null;
+    const ocFresh = !!(oc && oc.mvrvZ!=null && ocAge!=null && ocAge<=2);
+    const mvrvAgeDays = metrics.ts ? (Date.now()-metrics.ts)/86400000 : null;
+    const mvrvSet = metrics.mvrvZ!=null && metrics.mvrvZ!=="";
+    const mvrvFresh = mvrvSet && mvrvAgeDays!=null && mvrvAgeDays<=7;
+    if(ocFresh){
+      const parts=[[zMvrv(oc.mvrvZ),0.5]];
+      if(oc.nupl!=null)  parts.push([zNupl(oc.nupl),0.3]);
+      if(oc.puell!=null) parts.push([zPuell(oc.puell),0.2]);
+      V = Math.round(parts.reduce((a,x)=>a+x[0]*x[1],0)/parts.reduce((a,x)=>a+x[1],0)*10)/10;
+      vNote = "on-chain: MVRV Z "+oc.mvrvZ.toFixed(2)+(oc.nupl!=null?" · NUPL "+oc.nupl.toFixed(2):"")+(oc.puell!=null?" · Puell "+oc.puell.toFixed(2):"")+(oc.d?" · "+oc.d:"");
+    } else if(mvrvFresh){
+      V = zMvrv(+metrics.mvrvZ);
+      vNote = "MVRV Z "+metrics.mvrvZ+" (manual"+(mvrvAgeDays!=null?(", "+(mvrvAgeDays<1?"today":Math.floor(mvrvAgeDays)+"d old")):"")+")"+(ddLabel?" · "+ddLabel:"");
+    } else if(dd!=null){
+      V = dd>65?2:dd>45?1:dd>20?0:-1;
+      vNote = ddLabel+" (proxy — on-chain feed "+(oc&&oc.mvrvZ!=null?"stale":"unreachable")+")";
+    }
+    if(V!=null && ma200w!=null && p!=null && p<ma200w){ V = clamp(V+1,-2,2); if(vNote) vNote += " · below 200W MA (+1)"; }
+
+    if(state.fng!=null){ const f=state.fng; S = f<20?2:f<35?1:f<=60?0:f<=75?-1:-2; }
+    if(ind.structure!=null) St = ind.structure;
+
+    const noHist = state.srcStatus.chart==="fail";
+    const pillars = [
+      { key:"T", label:"Trend", w:30, v:T, note: trendNote || (noHist?"history unavailable — tap Refresh":"no data") },
+      { key:"M", label:"Momentum", w:20, v:M, note: mNote || (noHist?"history unavailable — tap Refresh":"no data") },
+      { key:"V", label:"Valuation", w:25, v:V, note: vNote || "no data" },
+      { key:"S", label:"Sentiment", w:15, v:S, note: state.fng!=null ? ("F&G "+state.fng+(state.fngTrend!=null?(" ("+(state.fngTrend>1?"improving":state.fngTrend<-1?"worsening":"flat")+")"):"")+" · contrarian") : (state.srcStatus.fng==="fail"?"F&G source unreachable":"no data") },
+      { key:"St",label:"Structure", w:10, v:St, note: St===2?"higher low (90d)":St===-2?"lower low (90d)":St===0?"flat base":(noHist?"history unavailable":"no data") },
+    ];
+    const avail = pillars.filter(x=>x.v!=null);
+    const composite = avail.length ? avail.reduce((a,x)=>a+x.w*x.v,0)/avail.reduce((a,x)=>a+x.w,0) : null;
+    const totalW = pillars.reduce((a,x)=>a+x.w,0), activeW = avail.reduce((a,x)=>a+x.w,0);
+    const coverage = totalW ? activeW/totalW : 0;
+    const btcSources = (state.quality.BTC && state.quality.BTC.n) || 0;
+    const degraded = coverage<0.6 || composite==null || btcSources<2;
+
+    // regime — raw read first, then hysteresis decides whether the label may switch
+    let rawKey = "NEUTRAL";
+    if(composite!=null){
+      const euphoric = (V!=null && V<=-1.5) || (state.fng!=null && state.fng>75 && ind.rsiW!=null && ind.rsiW>70);
+      const deepValue = V!=null && V>=1.5 && M!=null && M<=-1 && S!=null && S>=1;
+      if(euphoric) rawKey="EUPHORIA";
+      else if(deepValue) rawKey="DEEPVALUE";
+      else if(T!=null && T>=1 && composite>=0.5) rawKey="BULL";
+      else if((T==null||T<1) && composite>-0.3 && (St>0 || (ind.ma50 && p!=null && p>ind.ma50))) rawKey="RECOVERY";
+      else if(composite<=-0.6) rawKey="BEAR";
+    }
+    const heldKey = resolveRegime(rawKey, composite!=null && !degraded);
+    const regime = REGIMES[heldKey] || REGIMES.NEUTRAL;
+    const pending = (regimeMem.pending && regimeMem.pending!==heldKey && regimeMem.pendingSince) ? {
+      name: (REGIMES[regimeMem.pending]||{name:regimeMem.pending}).name,
+      hrsLeft: Math.max(1, Math.ceil((CONFIRM_MS-(Date.now()-regimeMem.pendingSince))/3600000)),
+    } : null;
+    const heldDays = regimeMem.since!=null ? (Date.now()-regimeMem.since)/86400000 : null;
+
+    // rails
+    const altBreaches = COINS.filter(c=>c.floorKey && floors && coins[c.sym] && coins[c.sym].price!=null)
+      .filter(c=> coins[c.sym].price < (nOrNull(floors[c.floorKey]) ?? 0));
+    const lamps=[];
+    const lamp=(id,label,tripped,pts,detail,severity)=>lamps.push({id,label,tripped,pts:tripped?pts:0,detail,severity});
+    lamp("trend", "BTC below 200-day MA", maRel==="below", 15, maRel==null?"No trend data":maRel==="below"?("Bear trend"+(ind.ma200?" (MA ≈ $"+fmtPrice(ind.ma200)+")":"")):"Above — recovery signal","warn");
+    lamp("caution", "BTC below $"+fmtPrice(cautionV), p!=null&&p<cautionV, 20, "Caution zone","warn");
+    lamp("structural", "BTC below $"+fmtPrice(structV), p!=null&&p<structV, 30, "Structural break — 3 daily closes = staged exit","danger");
+    lamp("capitulation", "BTC below $"+fmtPrice(capV), p!=null&&p<capV, 25, "Beyond historical −65% analog","danger");
+    lamp("velocity", "7-day drop > "+Math.abs(veloV)+"%", btc.ch7!=null&&btc.ch7<=veloV, 10, btc.ch7!=null?("7d: "+fmtPct(btc.ch7)+(ind.sigma7!=null?" ("+(ind.sigma7>0?"+":"")+ind.sigma7.toFixed(1)+"σ vs 90d vol)":"")):"No data","warn");
+    lamp("sigma", "7d move ≤ −2.5σ (vol-adjusted)", ind.sigma7!=null && ind.sigma7<=-2.5, 10,
+      ind.sigma7!=null ? ("Abnormality vs trailing 90d vol: "+(ind.sigma7>0?"+":"")+ind.sigma7.toFixed(1)+"σ — catches crashes the fixed % rail misses in calm regimes") : "No data","warn");
+    { const dv = ind.divergence;
+      lamp("divergence", "Bearish divergence (weekly)", !!(dv && dv.div), 10,
+        dv && dv.div ? ("Price higher high while weekly RSI fell "+dv.r1+"→"+dv.r2+" ("+dv.wksAgo+"w ago) — classic top precursor")
+        : dv ? "No active divergence between price highs and weekly RSI" : "Not enough weekly data","warn"); }
+    lamp("alts", "2+ alts below floor", altBreaches.length>=2, 10, altBreaches.length?("Breached: "+altBreaches.map(c=>c.sym).join(", ")):"Floors holding","warn");
+    if(state.fng!=null && state.fng<=10 && p!=null && p<structV) lamp("panic","Extreme fear + structural break",true,5,"F&G "+state.fng+" below floor","danger");
+    const risk = Math.min(100, lamps.reduce((a,l)=>a+l.pts,0));
+    const tripped = lamps.filter(l=>l.tripped);
+
+    // tripwires — the exact numbers that would change this read
+    const wires=[];
+    if(p!=null){
+      const rails=[["caution",cautionV],["structural",structV],["capitulation",capV]].filter(r=>r[1]!=null && isFinite(r[1]) && r[1]<p);
+      if(rails.length){ const near=rails.reduce((a,b)=> a[1]>b[1]?a:b);
+        wires.push("↓ "+near[0]+" rail: BTC < $"+fmtPrice(near[1])+" — "+((1-near[1]/p)*100).toFixed(0)+"% below current"); }
+    }
+    if(btc.ch7!=null) wires.push("↓ velocity rail "+veloV+"% / 7d — now "+fmtPct(btc.ch7)+(ind.sigma7!=null?" ("+(ind.sigma7>0?"+":"")+ind.sigma7.toFixed(1)+"σ vs 90d vol)":""));
+    {
+      const t=[];
+      if(state.fng!=null) t.push(state.fng>75?("F&G "+state.fng+" ✓"):("F&G "+state.fng+" → >75"));
+      if(ind.rsiW!=null) t.push(ind.rsiW>70?("wRSI "+Math.round(ind.rsiW)+" ✓"):("wRSI "+Math.round(ind.rsiW)+" → >70"));
+      const z = ocFresh ? oc.mvrvZ : (mvrvFresh ? +metrics.mvrvZ : null);
+      if(z!=null) t.push(z>5?("MVRV Z "+(+z).toFixed(1)+" ✓"):("MVRV Z "+(+z).toFixed(1)+" → >5"));
+      if(t.length) wires.push("↑ top zone: "+t.join(" · "));
+    }
+
+    // verdict
+    let verdict;
+    if(risk>=70) verdict={ title:"EXIT SIGNAL", color:C.red, key:"RED", order:"Begin the DCA-out ladder now. Staged tranches — no panic market-sells.", override:true };
+    else if(risk>=45) verdict={ title:"EXIT WATCH", color:C.orange, key:"ORANGE", order:"Pause new buys. 3 daily closes under $"+fmtPrice(structV)+" → start the ladder.", override:true };
+    else if(degraded) verdict={ title:"LOW CONFIDENCE", color:C.dim, key:"LOWCONF",
+      order: btcSources<2 ? ("Only "+btcSources+" price source responded — not enough to cross-check. Tap Refresh.")
+            : state.srcStatus.chart==="fail" ? "Price history is unavailable, so trend/momentum/structure are dark. Tap Refresh."
+            : ("Only "+Math.round(coverage*100)+"% of signal weight is live — not enough to trust a regime call. Tap Refresh."),
+      override:false };
+    else verdict={ title:regime.name.toUpperCase(), color:regime.color, key:regime.key, order:regime.order, override:false };
+
+    const gaugePos = composite==null ? null : ((composite+2)/4)*100;
+
+    return { th, metrics, btc, p, sym, disp, maRel, dd, ddLabel, ma200w,
+      pillars, composite, coverage, degraded, btcSources, regime, lamps, risk, tripped, verdict, gaugePos,
+      wires, pending, heldDays };
+  }
+
+  // ================= RENDER =================
+  const root = document.getElementById("root");
+
+  function section(title, right, inner){
+    return '<div class="card"><div class="hd"><span class="up muted">'+esc(title)+'</span>'+(right||"")+'</div>'+(inner||"")+'</div>';
+  }
+
+  function pillarBar(x){
+    const v=x.v;
+    const pct = v==null?0:(Math.abs(v)/2)*50;
+    const col = v==null?C.faint:v>0?C.green:v<0?C.red:C.dim;
+    const fill = (v!=null && v!==0) ? '<div class="fill" style="background:'+col+';width:'+pct+'%;left:'+(v>0?"50%":(50-pct)+"%")+'"></div>' : "";
+    return '<div class="pill">'+
+      '<div class="row"><span class="lab" style="color:'+(v==null?C.faint:C.text)+'">'+esc(x.label)+' <span class="faint" style="font-size:11px">w'+x.w+'</span></span>'+
+      '<span class="mono" style="font-size:12px;color:'+col+'">'+(v==null?"—":(v>0?"+":"")+v)+'</span></div>'+
+      '<div class="track" style="margin-top:7px"><div class="mid"></div>'+fill+'</div>'+
+      '<div class="note">'+esc(x.note)+'</div></div>';
+  }
+
+  function lampRow(l){
+    const lit=l.tripped, col = lit ? (l.severity==="danger"?C.red:C.warn) : C.green;
+    const dotStyle = "background:"+(lit?col:"transparent")+";border-color:"+(lit?col:C.faint)+";"+(lit?"box-shadow:0 0 8px "+col+"66;":"");
+    return '<div class="lamp"><div class="dot" style="'+dotStyle+'"></div><div style="flex:1;min-width:0">'+
+      '<div class="row" style="gap:8px"><span class="lab" style="color:'+(lit?C.text:C.dim)+'">'+esc(l.label)+'</span>'+
+      '<span class="up mono" style="color:'+(lit?col:C.faint)+'">'+(lit?"+"+l.pts:"clear")+'</span></div>'+
+      '<div class="det">'+esc(l.detail)+'</div></div></div>';
+  }
+
+  function nin(group,key,label,value,prefix){
+    prefix = prefix==null?"$":prefix;
+    const val = (value==null||value==="")?"":value;
+    return '<label class="nin"><span class="l">'+esc(label)+'</span><span class="r">'+
+      (prefix?'<span class="pfx">'+esc(prefix)+'</span>':'')+
+      '<input type="number" step="any" data-group="'+group+'" data-k="'+key+'" value="'+esc(val)+'"></span></label>';
+  }
+
+  function render(){
+    const d = state.loading && !state.updated ? null : derive();
+    const st = state, ui = st.ui;
+    const sym = d ? d.sym : (st.ccy==="EUR"&&st.fx!=null?"€":"$");
+    const disp = d ? d.disp : (u)=>u;
+    let h = "";
+
+    // header
+    h += '<header class="row" style="margin-bottom:12px"><div>'+
+      '<div class="kick">Regime engine · deterministic</div><div class="title">Exit Monitor</div></div>'+
+      '<div style="display:flex;gap:8px">'+
+      '<button class="btn amber" data-action="ccy">'+(st.ccy==="EUR"?"€ EUR":"$ USD")+'</button>'+
+      '<button class="btn'+(st.loading?"":" ")+'" data-action="refresh"'+(st.loading?" disabled":"")+'>'+(st.loading?"Reading…":"Refresh")+'</button>'+
+      '</div></header>';
+
+    if(st.error) h += '<div class="errbar">'+esc(st.error)+'</div>';
+
+    if(!d){
+      h += '<div class="verdict" style="border-color:'+C.dim+'66;background:linear-gradient(180deg,'+C.dim+'1F 0%,var(--panel) 85%)">'+
+        '<div class="big" style="color:'+C.dim+'">READING</div>'+
+        '<div class="order">Pulling prices from the exchanges and computing indicators…</div></div>';
+      root.innerHTML = h; return;
+    }
+
+    const v = d.verdict;
+    // verdict banner
+    h += '<div class="verdict" style="border-color:'+v.color+'66;background:linear-gradient(180deg,'+v.color+'1F 0%,var(--panel) 85%)">'+
+      '<div class="row"><span class="up" style="color:'+v.color+'">'+(v.override?"Rails override":v.key==="LOWCONF"?"Low confidence":"Regime read")+'</span>'+
+      '<span class="tag">'+(st.loading?"…":(Math.round(d.coverage*100)+"% live · rails "+d.risk+"/100"))+'</span></div>'+
+      '<div class="big" style="color:'+v.color+'">'+(st.loading?"READING":esc(v.title))+'</div>'+
+      '<div class="order">'+(st.loading?"Refreshing…":esc(v.order))+'</div>'+
+      (v.override?'<div class="det" style="margin-top:6px;color:'+C.dim+'">Regime read was “'+esc(d.regime.name)+'” — but the rails are law when invalidation levels break.</div>':'')+
+      // gauge
+      '<div style="margin-top:12px;opacity:'+(v.key==="LOWCONF"?0.45:1)+'">'+
+        '<div class="row tag"><span>bearish −2</span><span>read '+(d.composite==null?"—":(d.composite>0?"+":"")+d.composite.toFixed(2))+(v.key==="LOWCONF"?" (partial)":"")+'</span><span>+2 bullish</span></div>'+
+        '<div class="track" style="margin-top:4px"><div class="mid"></div>'+
+        (d.gaugePos!=null?'<div class="dot" style="left:'+d.gaugePos+'%;background:'+(v.key==="LOWCONF"?C.faint:v.color)+';'+(v.key==="LOWCONF"?"":"box-shadow:0 0 8px "+v.color+"88")+'"></div>':'')+
+        '</div></div>'+
+      (d.wires && d.wires.length ? '<div style="margin-top:10px;border-top:1px solid var(--etch);padding-top:8px">'+
+        '<div class="up faint" style="font-size:10px">Tripwires — what changes this read</div>'+
+        d.wires.map(w=>'<div class="tag" style="margin-top:3px">'+esc(w)+'</div>').join("")+
+        (d.pending ? '<div class="tag" style="margin-top:3px;color:'+C.warn+'">read shifting → '+esc(d.pending.name)+' · confirms in ~'+d.pending.hrsLeft+'h if it holds</div>'
+                   : (d.heldDays!=null ? '<div class="tag" style="margin-top:3px">regime held '+(d.heldDays<1?"under 1 day":Math.floor(d.heldDays)+"d")+'</div>' : ''))+
+        '</div>' : '')+
+      (st.updated?'<div class="tag" style="margin-top:10px">'+esc(new Date(st.updated).toLocaleString())+' · median of '+esc(st.source||"—")+
+        (st.srcStatus.chart==="live"?" · history live · "+st.histDays+"d":st.srcStatus.chart==="cached"?" · history cached · "+st.histDays+"d":st.srcStatus.chart==="stale"?" · history stale":st.srcStatus.chart==="short"?" · short history (uncalibrated)":st.srcStatus.chart==="fail"?" · history failed":"")+
+        (st.srcStatus.fng==="fail"?" · F&G failed":"")+'</div>':'')+
+      '</div>';
+
+    // pillars
+    h += section("Five pillars", "", d.pillars.map(pillarBar).join(""));
+
+    // track record — the engine's own history, replayed
+    const bt = st.backtest;
+    let evInner = "";
+    if(ui.evidence){
+      if(!bt) evInner = '<div class="sub p12 tag">Needs the full 2017→now history — currently offline or in short-history mode. Tap Refresh when back online.</div>';
+      else {
+        const cur = d.composite;
+        evInner = '<div class="sub p12">'+
+          '<div class="tag" style="margin-bottom:8px">Every day since '+bt.fromYear+' scored with the same pillar math, then checked against what BTC actually did next ('+bt.usedDays.toLocaleString("en-US")+' days):</div>'+
+          bt.rows.slice().reverse().map(r=>{
+            const isCur = cur!=null && cur>r.lo && cur<=r.hi;
+            return '<div style="padding:7px 9px;border-radius:7px;margin-bottom:4px;border:1px solid '+(isCur?C.amber:"var(--etch)")+';'+(isCur?("background:"+C.amber+"14"):"")+'">'+
+              '<div class="row"><span style="font-size:12px;color:'+(isCur?C.amber:C.dim)+'">'+esc(r.label)+(isCur?' ◀ today':'')+'</span>'+
+              '<span class="tag">N='+r.n+'</span></div>'+
+              (r.n ? '<div class="mono" style="font-size:11px;margin-top:3px">90d later: median '+fmtPct(r.med90*100)+' · higher '+r.up90.toFixed(0)+'% of the time · 30d median '+fmtPct(r.med30*100)+'</div>'
+                   : '<div class="tag">no samples in this band</div>')+
+            '</div>';
+          }).join("")+
+          '<div class="tag" style="margin-top:6px">In-sample replay, two cycles — evidence, not prophecy. Valuation replayed from MVRV Z only'+(bt.hasV?" (series starts 2022)":" (series unavailable)")+'; F&G'+(bt.hasS?" from 2018":" unavailable")+'; weekly values use the last completed week. Past ≠ future.</div>'+
+        '</div>';
+      }
+    }
+    h += section("Track record — this read vs history",
+      '<button class="link" data-action="evidence">'+(ui.evidence?"Hide":"Open")+'</button>', evInner);
+
+    // rails
+    const showRails = ui.rails || d.risk>=45;
+    h += section("Risk rails (USD) · "+d.risk+"/100 · "+d.tripped.length+" tripped",
+      '<button class="link" data-action="rails">'+(showRails?"Hide":"Open")+'</button>',
+      showRails ? d.lamps.map(lampRow).join("") : "");
+
+    // market strip
+    const q = st.quality.BTC || {n:0,spread:0};
+    const btc=d.btc, p=d.p;
+    h += section("Market", "",
+      '<div class="grid2">'+
+        '<div><div class="faint" style="font-size:11px">BTC / '+(st.ccy==="EUR"&&st.fx!=null?"EUR":"USD")+'</div>'+
+          '<div class="big-num">'+sym+fmtPrice(disp(p))+'</div>'+
+          '<div class="mono" style="font-size:11px;margin-top:2px;color:'+((btc.ch24||0)<0?C.red:C.green)+'">'+fmtPct(btc.ch24)+' 24h · '+fmtPct(btc.ch7)+' 7d</div>'+
+          '<div class="tag">'+(d.dd!=null?("−"+d.dd.toFixed(0)+"% from "+(st.ind.ddProxy==="1y"?"1y high":"cycle high")):"")+(st.ccy==="EUR"&&st.fx!=null?(" · $"+fmtPrice(p)):"")+'</div>'+
+          '<div class="tag" style="color:'+(q.n>=2?C.faint:C.warn)+'">'+q.n+'/4 sources · agree ±'+((q.spread||0)*100).toFixed(2)+'%</div>'+
+        '</div>'+
+        '<div><div class="faint" style="font-size:11px">Fear &amp; Greed</div>'+
+          '<div class="big-num">'+(st.fng!=null?st.fng:"—")+'</div>'+
+          '<div style="font-size:11px;margin-top:2px;color:'+(st.fng!=null&&st.fng<=25?C.warn:C.dim)+'">'+
+            (st.fng==null?"no data":st.fng<=25?"Extreme fear":st.fng<=45?"Fear":st.fng<=55?"Neutral":st.fng<=75?"Greed":"Extreme greed")+'</div>'+
+          '<div class="track" style="height:4px;margin-top:7px">'+(st.fng!=null?'<div class="dot" style="left:'+st.fng+'%;width:7px;height:7px;background:'+C.amber+'"></div>':'')+'</div>'+
+        '</div>'+
+      '</div>');
+
+    // watchlist
+    let wl="";
+    for(const c of COINS){
+      const dc = st.coins[c.sym] || {};
+      const floor = (c.floorKey && st.floors) ? nOrNull(st.floors[c.floorKey]) : null;
+      let badge=null;
+      if(c.core) badge={t:"CORE",col:C.dim};
+      else if(floor!=null && dc.price!=null){
+        if(dc.price<floor) badge={t:"BELOW FLOOR",col:C.red};
+        else if(dc.price<floor*1.1) badge={t:"NEAR FLOOR",col:C.warn};
+        else badge={t:"OK",col:C.green};
+      }
+      wl += '<div class="wl"><div style="min-width:0"><div style="font-size:14px;font-weight:600">'+c.sym+'</div>'+
+        '<div class="tag">'+(floor!=null?("floor "+sym+fmtPrice(disp(floor))):esc(c.name))+'</div></div>'+
+        '<div style="text-align:right"><div class="mono" style="font-size:14px;color:'+C.amber+'">'+sym+fmtPrice(disp(dc.price))+'</div>'+
+        '<div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">'+
+        '<span class="mono" style="font-size:11px;color:'+((dc.ch7||0)<0?C.red:C.green)+'">'+fmtPct(dc.ch7)+' 7d</span>'+
+        (badge?'<span class="badge" style="color:'+badge.col+'">'+badge.t+'</span>':'')+'</div></div></div>';
+    }
+    h += section("Watchlist vs floors","",wl);
+
+    // exit ladder
+    const showExit = ui.exit || v.key==="ORANGE" || v.key==="RED";
+    h += section("Exit ladder (down)",
+      '<button class="link" data-action="exit">'+(showExit?"Hide":"Open")+'</button>',
+      showExit ? '<div class="sub p12"><ol class="lad">'+
+        '<li><b>1. Stop all new buys</b> the day the signal fires.</li>'+
+        '<li><b>2. Week 1:</b> fully exit the weak six if still held — GALA, DOGE, FET, POL, ARB, AVAX.</li>'+
+        '<li><b>3. Weeks 2–3:</b> sell 50% of NEAR, TAO, SUI, RENDER in two tranches.</li>'+
+        '<li><b>4. BTC &amp; ETH last:</b> 25%/week only while BTC stays under the capitulation line.</li>'+
+        '<li><b>5. Park in EUR/stables.</b> Re-entry only on recovery: 200D MA reclaim held a week, F&amp;G &gt; 25, weekly higher low.</li>'+
+        '</ol></div>' : "");
+
+    // take-profit ladder
+    const showProfit = ui.profit || v.key==="EUPHORIA";
+    h += section("Take-profit ladder (up)",
+      '<button class="link" data-action="profit">'+(showProfit?"Hide":"Open")+'</button>',
+      showProfit ? '<div class="sub p12"><div class="tag">Historical top-zone markers — a ladder, not a prediction. DCA in reverse.</div><ol class="lad">'+
+        '<li><b>1. MVRV Z &gt; 5</b> or F&amp;G &gt; 80 for two weeks → sell 25% of SOL/NEAR/TAO/SUI/RENDER.</li>'+
+        '<li><b>2. New BTC ATH + weekly RSI &gt; 80</b> → another 25% of alts, 10% of ETH.</li>'+
+        '<li><b>3. Parabolic month (BTC +40% in 30d)</b> → final 25% of alts. Keep the BTC core.</li>'+
+        '<li><b>4. Never sell everything at once</b> — tops take months, ladders catch them.</li>'+
+        '</ol></div>' : "");
+
+    // config
+    const m = st.metrics;
+    const cfgInner = ui.config ? '<div class="sub p12">'+
+      '<div class="up faint" style="margin:2px 0 4px">BTC rails (USD)</div>'+
+      nin("th","caution","Caution zone",st.th.caution)+
+      nin("th","structural","Structural break",st.th.structural)+
+      nin("th","capitulation","Capitulation",st.th.capitulation)+
+      nin("th","velocity","7d velocity (%)",st.th.velocity,"")+
+      '<div class="up faint" style="margin:10px 0 4px">Valuation (auto from on-chain feed)</div>'+
+      '<div class="tag" style="margin:2px 0 6px">'+
+        (st.onchain && st.onchain.mvrvZ!=null
+          ? "bitcoin-data.com: MVRV Z "+st.onchain.mvrvZ.toFixed(2)+(st.onchain.nupl!=null?" · NUPL "+st.onchain.nupl.toFixed(2):"")+(st.onchain.puell!=null?" · Puell "+st.onchain.puell.toFixed(2):"")+(st.onchain.d?" · "+esc(st.onchain.d):"")
+          : "on-chain feed unreachable — manual MVRV below is used")+'</div>'+
+      nin("metrics","mvrvZ","MVRV Z (manual fallback)",m.mvrvZ,"")+
+      '<div class="tag" style="margin:2px 0 4px">200-week MA (auto): '+(st.ind.ma200w!=null?("$"+fmtPrice(st.ind.ma200w)):"computing…")+
+        (m.ts?(" · manual MVRV set "+new Date(m.ts).toLocaleDateString()):"")+'</div>'+
+      '<div class="up faint" style="margin:10px 0 4px">Alt floors (USD)</div>'+
+      COINS.filter(c=>c.floorKey).map(c=>nin("floor",c.floorKey,c.sym, st.floors?st.floors[c.floorKey]:"")).join("")+
+      '<div style="display:flex;gap:8px;margin-top:12px">'+
+        '<button class="btn amber" data-action="save" style="background:'+C.amber+';color:#1A1A1A">Save</button>'+
+        '<button class="btn" data-action="recal">Reset floors −28%</button></div>'+
+      (st.saveMsg?'<div class="tag" style="color:'+C.green+';margin-top:8px">'+esc(st.saveMsg)+'</div>':'')+
+      '</div>' : "";
+    h += section("Trigger levels & metrics",
+      '<button class="link" data-action="config">'+(ui.config?"Hide":"Edit")+'</button>', cfgInner);
+
+    h += '<div class="foot">Rule-based reads on live market data — prices medianed across four exchanges, indicators computed on your device from nine years of daily candles and scored against their own history, on-chain valuation (MVRV Z · NUPL · Puell) from bitcoin-data.com. No AI, no estimates. Informational tool, not financial advice. Verify prices on your exchange before acting; crypto can fall further than any model expects.</div>';
+
+    root.innerHTML = h;
+  }
+
+  // ================= EVENTS =================
+  root.addEventListener("click", (e)=>{
+    const el = e.target.closest("[data-action]"); if(!el) return;
+    const a = el.dataset.action;
+    if(a==="refresh"){ if(!state.loading) refresh(); }
+    else if(a==="ccy"){ state.ccy = state.ccy==="USD"?"EUR":"USD"; lsSet("exitmon2:ccy",state.ccy); render(); }
+    else if(a==="rails"){ state.ui.rails=!state.ui.rails; render(); }
+    else if(a==="evidence"){ state.ui.evidence=!state.ui.evidence; render(); }
+    else if(a==="exit"){ state.ui.exit=!state.ui.exit; render(); }
+    else if(a==="profit"){ state.ui.profit=!state.ui.profit; render(); }
+    else if(a==="config"){ state.ui.config=!state.ui.config; render(); }
+    else if(a==="save"){ const ok=persist(); state.saveMsg=ok?"Saved":"Save failed"; render(); setTimeout(()=>{state.saveMsg="";render();},2500); }
+    else if(a==="recal"){
+      const nf={}; for(const c of COINS){ if(!c.floorKey) continue; const p=state.coins[c.sym]&&state.coins[c.sym].price;
+        nf[c.floorKey]= p? round3(p*0.72) : (state.floors&&state.floors[c.floorKey])||0; }
+      state.floors=nf; persist(); state.saveMsg="Floors reset to −28% of current"; render(); setTimeout(()=>{state.saveMsg="";render();},2500);
+    }
+  });
+
+  // config inputs: sync state, no re-render (keeps keyboard focus)
+  root.addEventListener("input", (e)=>{
+    const t=e.target; if(!t.dataset || !t.dataset.group) return;
+    const g=t.dataset.group, k=t.dataset.k, raw=t.value;
+    if(g==="th")      state.th[k] = raw==="" ? "" : +raw;
+    else if(g==="floor"){ state.floors = state.floors||{}; state.floors[k] = raw==="" ? "" : +raw; }
+    else if(g==="metrics") state.metrics = { ...state.metrics, [k]: raw==="" ? null : +raw, ts: Date.now() };
+  });
+
+  // ================= BOOT =================
+  loadPrefs();
+  render();
+  refresh();
+})();
+</script>
