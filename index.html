@@ -536,7 +536,7 @@
 
   // ================= STATE =================
   const state = {
-    loading:true, error:null, source:null, updated:null,
+    loading:true, error:null, source:null, updated:null, offline:false,
     coins:{}, ind:{}, quality:{}, fng:null, fngTrend:null,
     ccy:"EUR", fx:null, onchain:null, calib:null, histDays:0, backtest:null,
     th:{...DEFAULT_TH}, floors:null, metrics:{ mvrvZ:null, ma200w:null, ts:null },
@@ -558,17 +558,27 @@
     const settled = await Promise.allSettled([ srcOKX(), srcBinance(), srcCoinbase(), srcKucoin(), getFng(), getFx(), getOnchain(), getFngHist(), getMvrvHist() ]);
     const [okx,bin,cb,ku,fngR,fxR,ocR,fngHistR,zHistR] = settled;
     const priceRes = [okx,bin,cb,ku].map(r=>r.status==="fulfilled"?r.value:null);
-    const { coins, quality } = aggregate(priceRes);
+    let { coins, quality } = aggregate(priceRes);
 
+    state.offline = false;
     if(!coins.BTC || coins.BTC.price==null){
-      state.loading=false;
-      state.error="All price sources are unreachable right now. Check your connection and tap Refresh.";
-      render(); return;
+      // no exchange reachable this refresh — fall back to the last successful snapshot
+      // (history/on-chain/F&G already degrade to their own caches below regardless)
+      const lg = lsGet("exitmon2:lastgood");
+      if(!lg || !lg.coins || !lg.coins.BTC || lg.coins.BTC.price==null){
+        state.loading=false;
+        state.error="All price sources are unreachable right now. Check your connection and tap Refresh.";
+        render(); return;
+      }
+      coins = lg.coins; quality = lg.quality || {};
+      if(state.fng==null) state.fng = lg.fng;
+      if(state.fngTrend==null) state.fngTrend = lg.fngTrend;
+      state.offline = true; state.updated = lg.ts;
     }
 
     if(fxR.status==="fulfilled" && fxR.value!=null) state.fx=fxR.value;
     if(fngR.status==="fulfilled" && fngR.value){ state.fng=fngR.value.fng; state.fngTrend=fngR.value.trend; state.srcStatus.fng="ok"; }
-    else { state.srcStatus.fng="fail"; }
+    else if(!state.offline){ state.srcStatus.fng="fail"; }
     if(ocR.status==="fulfilled" && ocR.value) state.onchain=ocR.value;
 
     const hist = await getHistory();
@@ -593,7 +603,7 @@
       if(ind.sigmaD && coins.BTC.ch7!=null) ind.sigma7 = (coins.BTC.ch7/100)/(ind.sigmaD*Math.sqrt(7));
     }
 
-    await enrichCG(coins); // alt 7d best-effort
+    if(!state.offline) await enrichCG(coins); // alt 7d best-effort — skip when offline, nothing new to enrich from
 
     if(!state.floors){
       const nf={}; for(const c of COINS){ if(!c.floorKey) continue; const p=coins[c.sym]&&coins[c.sym].price; nf[c.floorKey]= p? round3(p*0.72):0; }
@@ -601,10 +611,16 @@
     }
 
     state.coins=coins; state.ind=ind; state.quality=quality;
-    state.updated=Date.now();
-    const okCount = quality.BTC.n;
-    state.source = okCount + " exchange" + (okCount>1?"s":"");
     state.loading=false;
+    if(!state.offline){
+      state.updated=Date.now();
+      const okCount = quality.BTC.n;
+      state.source = okCount + " exchange" + (okCount>1?"s":"");
+      lsSet("exitmon2:lastgood", { ts:state.updated, coins, quality, fng:state.fng, fngTrend:state.fngTrend, source:state.source });
+    } else {
+      const okCount = (quality.BTC && quality.BTC.n) || 0;
+      state.source = okCount + " exchange" + (okCount>1?"s":"") + " (cached)";
+    }
     render();
   }
 
@@ -819,6 +835,7 @@
       '</div></header>';
 
     if(st.error) h += '<div class="errbar">'+esc(st.error)+'</div>';
+    else if(st.offline && st.updated) h += '<div class="errbar" style="background:#241E14;border-color:'+C.warn+';color:'+C.warn+'">Offline — showing cached read from '+esc(new Date(st.updated).toLocaleString())+'. Reconnect and tap Refresh for live prices.</div>';
 
     if(!d){
       h += '<div class="verdict" style="border-color:'+C.dim+'66;background:linear-gradient(180deg,'+C.dim+'1F 0%,var(--panel) 85%)">'+
@@ -1012,5 +1029,8 @@
   loadPrefs();
   render();
   refresh();
+  if(typeof navigator!=="undefined" && "serviceWorker" in navigator){
+    navigator.serviceWorker.register("./sw.js").catch(()=>{});
+  }
 })();
 </script>

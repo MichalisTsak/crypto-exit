@@ -15,6 +15,7 @@ function makeEnv(store, opts = {}) {
   const j = (data) => ({ ok: true, status: 200, json: async () => data });
   async function fetchMock(url) {
     fetchLog.push(url);
+    if (opts.failAll) throw new Error("mock net fail: fully offline");
     if (opts.fail && opts.fail.some((s) => url.includes(s))) throw new Error("mock net fail: " + url);
     if (url.includes("okx.com/api/v5/market/tickers"))
       return j({ data: Object.entries(tickers).map(([s, p]) => ({ instId: s + "-USDT", last: String(p), open24h: String(p * 0.99) })) });
@@ -93,7 +94,7 @@ async function boot(store, opts) {
   const env = makeEnv(store, opts);
   new Function("fetch", "localStorage", "document", js)(env.fetchMock, env.localStorageMock, env.documentMock);
   for (let i = 0; i < 100; i++) {
-    if (env.cap.html.includes("median of")) break;
+    if (env.cap.html.includes("median of") || env.cap.html.includes("unreachable right now")) break;
     await new Promise((r) => setTimeout(r, 50));
   }
   await new Promise((r) => setTimeout(r, 100)); // let trailing renders settle
@@ -182,6 +183,23 @@ const check = (name, cond) => { if (cond) { pass++; console.log("  ok  " + name)
   check("sigma lamp present", a.cap.html.includes("vol-adjusted"));
   check("divergence lamp present", a.cap.html.includes("Bearish divergence (weekly)"));
   check("no NaN after toggles", !a.cap.html.includes("NaN"));
+
+  // G — Phase 3: true offline (every request fails) but a prior session's caches exist
+  console.log("\n[G] true offline, prior session cached (storeA)");
+  const g = await boot(storeA, { failAll: true });
+  check("offline banner shown with cached timestamp", g.cap.html.includes("Offline") && g.cap.html.includes("cached read from"));
+  check("no blocking error bar", !g.cap.html.includes("All price sources are unreachable"));
+  check("still renders full verdict from cache", /read [+\-−0]/.test(g.cap.html) && !g.cap.html.includes("NaN"));
+  check("history still shown from cache", g.cap.html.includes("history cached") || g.cap.html.includes("history stale"));
+  check("tripwires still present offline", g.cap.html.includes("Tripwires"));
+  const lgG = JSON.parse(storeA.get("exitmon2:lastgood") || "null");
+  check("lastgood snapshot exists (from a prior success)", !!(lgG && lgG.coins && lgG.coins.BTC && lgG.coins.BTC.price != null));
+
+  // H — true offline, fresh install, nothing cached yet: must fail honestly, not fabricate
+  console.log("\n[H] true offline, fresh install (no cache at all)");
+  const hh = await boot(new Map(), { failAll: true });
+  check("honest error, not a fabricated dashboard", hh.cap.html.includes("All price sources are unreachable"));
+  check("no NaN in error state", !hh.cap.html.includes("NaN"));
 
   console.log("\n" + pass + " passed, " + failCount + " failed");
   process.exit(failCount ? 1 : 0);
