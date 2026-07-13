@@ -22,7 +22,7 @@ to reference it.
 - **Don't read `index.html` top-to-bottom.** Grep for section banners and read only that range:
   `price sources`, `history:`, `calibration`, `on-chain valuation`, `regimes + hysteresis`,
   `STATE`, `FETCH ORCHESTRATOR`, `ENGINE`, `RENDER`, `EVENTS`. CSS/head (lines 1–92) rarely change.
-- **Validate with `node test/harness.js`** (50 offline checks, mocked network/DOM — must stay
+- **Validate with `node test/harness.js`** (58 offline checks, mocked network/DOM — must stay
   green) and `node test/watchdog.js` (29 checks: alert logic + a live-engine `derive()` field
   contract). Both use the shared mocks in `test/env.js` — don't rebuild mocks from scratch,
   extend `env.js`. `node test/live.js` hits real APIs (~15 requests — use sparingly, spends the
@@ -45,6 +45,12 @@ to reference it.
   to nearest rail, 7d velocity in σ, and top-zone gaps (F&G>75, wRSI>70, MVRV Z>5).
   Extra lamps: `sigma` (7d ≤ −2.5σ vs 90d vol) and `divergence` (`bearishDivergence()`: price
   higher high + weekly RSI lower high, completed weeks, 52w lookback), 10 pts each.
+- **Position sizing** (Phase 5-A, `computeSizing()` → "Position sizing" card): vol-targeted
+  recommended exposure. `wVol=min(1, σ_target/σ_ann)` where `σ_ann=max(sigmaD,sigmaD30)·√365`
+  and `σ_target=(maxDD/100)/2`; × signal tilt `m∈[0,1]` (risk≥70→0.5..0, 45..70→1..0.5; ×0.8
+  per top-zone marker); capped at `ips.maxPos`. **Asymmetric — only ever de-risks, min(…,1), never
+  levers, never auto-trades.** Turnover deadband 0.10 (hold vs trim/add); `$` delta needs
+  `ips.totalValue`+`ips.holdings`, else %-only. Null (no card) when no `maxDD` or <30 return days.
 - **Backtest** (`buildBacktest()` → "Track record" card, collapsed): replays the pillar engine
   over every day since ~2018, buckets composite into 5 bands, reports N / median 30d & 90d fwd
   return / % higher at 90d, highlights today's band. In-sample (disclosed); weekly values use

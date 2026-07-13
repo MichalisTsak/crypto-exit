@@ -137,6 +137,40 @@ const check = (name, cond) => { if (cond) { pass++; console.log("  ok  " + name)
   check("policy survives a fresh boot (own key, never wiped)", JSON.parse(storeI.get("exitmon2:ips") || "null").plan.includes("4 weekly"));
   check("no NaN with policy set", !i2.cap.html.includes("NaN"));
 
+  // J — Phase 5-A: volatility-targeted position sizing
+  console.log("\n[J] position sizing (vol-targeted)");
+  const storeJ = new Map();
+  const j1 = await boot(storeJ);
+  clickAction(j1, "policy");
+  const typeJ = (k, v) => j1.root.handlers.input({ target: { dataset: { group: "ips", k }, value: String(v) } });
+  typeJ("maxDD", "1"); typeJ("totalValue", "1000"); typeJ("holdings", "1000"); // very tight budget, fully invested
+  clickAction(j1, "save-policy");
+  const j2 = await boot(storeJ);
+  const mExp = j2.cap.html.match(/Recommended exposure<\/span><span class="big-num">(\d{1,3})%/);
+  check("position card renders a recommended exposure %", !!mExp);
+  check("tight drawdown budget caps exposure below 100% (no leverage)", !!mExp && +mExp[1] < 100);
+  check("recommends trimming when over target", j2.cap.html.includes("Trim ~"));
+  check("trade shown with a currency amount + staged", /Trim ~\d+%<\/b> \([€$]/.test(j2.cap.html) && j2.cap.html.includes("weekly"));
+  check("why-line explains vol cap + drawdown budget", j2.cap.html.includes("vol cap") && j2.cap.html.includes("drawdown budget ≤1%"));
+  check("no NaN in sizing", !j2.cap.html.includes("NaN"));
+  // loose budget + underinvested → add
+  const storeK = new Map();
+  const k1 = await boot(storeK);
+  clickAction(k1, "policy");
+  const typeK = (k, v) => k1.root.handlers.input({ target: { dataset: { group: "ips", k }, value: String(v) } });
+  typeK("maxDD", "90"); typeK("totalValue", "1000"); typeK("holdings", "100"); // loose budget, underinvested
+  clickAction(k1, "save-policy");
+  const k2 = await boot(storeK);
+  check("recommends adding when under target", k2.cap.html.includes("Add ~"));
+  // sizing hidden until a drawdown budget exists (empty maxDD)
+  const storeL = new Map();
+  const l1 = await boot(storeL);
+  clickAction(l1, "policy");
+  l1.root.handlers.input({ target: { dataset: { group: "ips", k: "maxDD" }, value: "" } });
+  clickAction(l1, "save-policy");
+  const l2 = await boot(storeL);
+  check("no budget → sizing prompts instead of guessing", l2.cap.html.includes("max-drawdown tolerance") && !/Recommended exposure<\/span>/.test(l2.cap.html));
+
   console.log("\n" + pass + " passed, " + failCount + " failed");
   process.exit(failCount ? 1 : 0);
 })();
