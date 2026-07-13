@@ -97,8 +97,14 @@ about a market event without opening the app. Does NOT modify `index.html` or th
   `WATCHDOG_STATE_DIR=<scratch>` (one real refresh, ~4 bitcoin-data reqs — sparingly).
 
 ## Backlog (agreed with user, not built)
-GitHub Pages setup walkthrough. Ideas raised but not committed to: portfolio holdings → concrete
-order sizes, config export/import (QR or clipboard JSON).
+**Phase 5 — risk layer (spec'd, not built): see [`docs/risk-layer-spec.md`](docs/risk-layer-spec.md).**
+Three Tier-1 items making the app a risk *consultant*, not just a signal dashboard:
+A. volatility-targeted position sizing (recommended exposure %/$ that scales down with vol +
+top-zone risk; never levers, never auto-trades), B. out-of-sample / walk-forward backtest
+(fixes the in-sample look-ahead in `buildCalib`), C. encoded IPS (pre-committed policy the
+verdict repeats back). Build order C→A→B; each behind its own harness tests. All changes must
+clear the Methodology Bar in the spec. Also still open: config export/import (QR/clipboard JSON,
+feeds C), GitHub Pages walkthrough.
 (Phase 2 — backtest panel, σ lamp, divergence lamp — shipped 2026-07-12.
 Phase 3 — offline PWA: service worker + lastgood cache fallback — shipped 2026-07-12.
 Phase 4 — watchdog cron + Telegram alerts — shipped 2026-07-12.)
