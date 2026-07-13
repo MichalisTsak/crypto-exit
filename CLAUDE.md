@@ -108,7 +108,12 @@ about a market event without opening the app. Does NOT modify `index.html` or th
   `WATCHDOG_STATE_DIR=<scratch>` (one real refresh, ~4 bitcoin-data reqs — sparingly).
 
 ## Backlog (agreed with user, not built)
-Still open: config export/import (QR/clipboard JSON — would let the Phase 5-C policy be
+**Phase 6 — DCA scheduler (spec'd, not built): see [`docs/dca-scheduler-spec.md`](docs/dca-scheduler-spec.md).**
+Per-coin weekly buy plan (`ips.dca`) + a pacing multiplier derived from Phase 5-A's existing
+sizing gap (0.5×–2.0×, no new indicator) + an idle-cash deployment timeline. Explicitly cannot
+judge whether to *add* a new coin (needs live research, outside the deterministic architecture)
+— schedules buys across the existing watchlist only.
+Also still open: config export/import (QR/clipboard JSON — would let the Phase 5-C policy be
 backed up / moved between devices), GitHub Pages walkthrough. Tier-2/3 risk-layer ideas from
 [`docs/risk-layer-spec.md`](docs/risk-layer-spec.md) (bootstrap CIs, composite-agreement
 scoring, correlation-aware alt risk, any regime-model upgrade) remain gated on the Methodology
