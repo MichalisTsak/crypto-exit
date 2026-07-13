@@ -115,10 +115,9 @@
     { id:"ethereum",     base:"ETH",    sym:"ETH",    name:"Ethereum",      core:true },
     { id:"solana",       base:"SOL",    sym:"SOL",    name:"Solana",        floorKey:"sol" },
     { id:"near",         base:"NEAR",   sym:"NEAR",   name:"NEAR Protocol", floorKey:"near" },
-    { id:"bittensor",    base:"TAO",    sym:"TAO",    name:"Bittensor",     floorKey:"tao" },
-    { id:"sui",          base:"SUI",    sym:"SUI",    name:"Sui",           floorKey:"sui" },
-    { id:"render-token", base:"RENDER", sym:"RENDER", name:"Render",        floorKey:"render" },
+    { id:"litecoin",     base:"LTC",    sym:"LTC",    name:"Litecoin",      floorKey:"ltc" },
   ];
+  const ALTS = COINS.filter(c=>!c.core); // used to keep the exit/take-profit ladders in sync with the actual watchlist
 
   // ---------- format / math ----------
   const fmtPrice = (n) => {
@@ -198,7 +197,7 @@
   }
   async function srcCoinbase(){
     const out={};
-    await Promise.all(COINS.filter(c=>c.base!=="TAO").map(async c=>{
+    await Promise.all(COINS.map(async c=>{
       try{ const j=await getJson("https://api.coinbase.com/v2/prices/"+c.base+"-USD/spot",1,7000);
            const p=parseFloat(j&&j.data&&j.data.amount); if(p>0) out[c.sym]={price:p}; }catch(e){}
     }));
@@ -1074,10 +1073,9 @@
       '<button class="link" data-action="exit">'+(showExit?"Hide":"Open")+'</button>',
       showExit ? '<div class="sub p12"><ol class="lad">'+
         '<li><b>1. Stop all new buys</b> the day the signal fires.</li>'+
-        '<li><b>2. Week 1:</b> fully exit the weak six if still held — GALA, DOGE, FET, POL, ARB, AVAX.</li>'+
-        '<li><b>3. Weeks 2–3:</b> sell 50% of NEAR, TAO, SUI, RENDER in two tranches.</li>'+
-        '<li><b>4. BTC &amp; ETH last:</b> 25%/week only while BTC stays under the capitulation line.</li>'+
-        '<li><b>5. Park in EUR/stables.</b> Re-entry only on recovery: 200D MA reclaim held a week, F&amp;G &gt; 25, weekly higher low.</li>'+
+        '<li><b>2. Week 1:</b> exit the alts first, in two tranches — '+(ALTS.length?esc(ALTS.map(c=>c.sym).join(", ")):"(none held)")+'. Higher-beta, thinner books — they crash harder and get less liquid the longer you wait.</li>'+
+        '<li><b>3. BTC &amp; ETH last:</b> 25%/week only while BTC stays under the capitulation line.</li>'+
+        '<li><b>4. Park in EUR/stables.</b> Re-entry only on recovery: 200D MA reclaim held a week, F&amp;G &gt; 25, weekly higher low — even then, expect the line to sometimes fake out.</li>'+
         '</ol></div>' : "");
 
     // take-profit ladder
@@ -1085,7 +1083,7 @@
     h += section("Take-profit ladder (up)",
       '<button class="link" data-action="profit">'+(showProfit?"Hide":"Open")+'</button>',
       showProfit ? '<div class="sub p12"><div class="tag">Historical top-zone markers — a ladder, not a prediction. DCA in reverse.</div><ol class="lad">'+
-        '<li><b>1. MVRV Z &gt; 5</b> or F&amp;G &gt; 80 for two weeks → sell 25% of SOL/NEAR/TAO/SUI/RENDER.</li>'+
+        '<li><b>1. MVRV Z &gt; 5</b> or F&amp;G &gt; 80 for two weeks → sell 25% of '+(ALTS.length?esc(ALTS.map(c=>c.sym).join("/")):"the alts")+'.</li>'+
         '<li><b>2. New BTC ATH + weekly RSI &gt; 80</b> → another 25% of alts, 10% of ETH.</li>'+
         '<li><b>3. Parabolic month (BTC +40% in 30d)</b> → final 25% of alts. Keep the BTC core.</li>'+
         '<li><b>4. Never sell everything at once</b> — tops take months, ladders catch them.</li>'+

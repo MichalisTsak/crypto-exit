@@ -13,7 +13,7 @@ const DAY = 86400000, GEN = 1502928000000;
 const today = Math.floor(Date.now() / DAY) * DAY;
 const nDays = Math.floor((today - GEN) / DAY) + 1;
 const priceAt = (i) => 4000 * Math.exp(0.00065 * i) * (1 + 0.45 * Math.sin(i / 230));
-const tickers = { BTC: priceAt(nDays - 1), ETH: 2500, SOL: 120, NEAR: 3.2, TAO: 280, SUI: 2.1, RENDER: 4.5 };
+const tickers = { BTC: priceAt(nDays - 1), ETH: 2500, SOL: 120, NEAR: 3.2, LTC: 65 };
 
 function makeEnv(store, opts = {}) {
   const fetchLog = [];
