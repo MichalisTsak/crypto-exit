@@ -22,7 +22,7 @@ to reference it.
 - **Don't read `index.html` top-to-bottom.** Grep for section banners and read only that range:
   `price sources`, `history:`, `calibration`, `on-chain valuation`, `regimes + hysteresis`,
   `STATE`, `FETCH ORCHESTRATOR`, `ENGINE`, `RENDER`, `EVENTS`. CSS/head (lines 1–92) rarely change.
-- **Validate with `node test/harness.js`** (58 offline checks, mocked network/DOM — must stay
+- **Validate with `node test/harness.js`** (63 offline checks, mocked network/DOM — must stay
   green) and `node test/watchdog.js` (29 checks: alert logic + a live-engine `derive()` field
   contract). Both use the shared mocks in `test/env.js` — don't rebuild mocks from scratch,
   extend `env.js`. `node test/live.js` hits real APIs (~15 requests — use sparingly, spends the
@@ -53,8 +53,11 @@ to reference it.
   `ips.totalValue`+`ips.holdings`, else %-only. Null (no card) when no `maxDD` or <30 return days.
 - **Backtest** (`buildBacktest()` → "Track record" card, collapsed): replays the pillar engine
   over every day since ~2018, buckets composite into 5 bands, reports N / median 30d & 90d fwd
-  return / % higher at 90d, highlights today's band. In-sample (disclosed); weekly values use
-  last completed week (no lookahead); V replayed from MVRV Z only.
+  return / % higher at 90d, highlights today's band. Phase 5-B: computes BOTH `rowsWf`
+  (walk-forward — Momentum percentile from an expanding window `wfPct`, only weeks ≤ that day, no
+  look-ahead; <100 prior weeks → fixed-band fallback) and `rowsIn` (in-sample — full-distribution
+  percentile). UI toggles `ui.wf` (default walk-forward = the honest one); only Momentum was
+  calibrated so it's the sole look-ahead source. Weekly values use last completed week; V from MVRV Z.
 - **localStorage keys**: `exitmon2:cfg` (user rails/floors/manual MVRV — never wipe),
   `ips` (Phase 5-C investment policy {objective, plan, maxDD, targetPos, totalValue, holdings,
   maxPos, reviewedOn} — own key, never wiped by `cfg` persist; `maxDD` feeds Phase 5-A sizing),
@@ -105,14 +108,14 @@ about a market event without opening the app. Does NOT modify `index.html` or th
   `WATCHDOG_STATE_DIR=<scratch>` (one real refresh, ~4 bitcoin-data reqs — sparingly).
 
 ## Backlog (agreed with user, not built)
-**Phase 5 — risk layer (spec'd, not built): see [`docs/risk-layer-spec.md`](docs/risk-layer-spec.md).**
-Three Tier-1 items making the app a risk *consultant*, not just a signal dashboard:
-A. volatility-targeted position sizing (recommended exposure %/$ that scales down with vol +
-top-zone risk; never levers, never auto-trades), B. out-of-sample / walk-forward backtest
-(fixes the in-sample look-ahead in `buildCalib`), C. encoded IPS (pre-committed policy the
-verdict repeats back). Build order C→A→B; each behind its own harness tests. All changes must
-clear the Methodology Bar in the spec. Also still open: config export/import (QR/clipboard JSON,
-feeds C), GitHub Pages walkthrough.
+Still open: config export/import (QR/clipboard JSON — would let the Phase 5-C policy be
+backed up / moved between devices), GitHub Pages walkthrough. Tier-2/3 risk-layer ideas from
+[`docs/risk-layer-spec.md`](docs/risk-layer-spec.md) (bootstrap CIs, composite-agreement
+scoring, correlation-aware alt risk, any regime-model upgrade) remain gated on the Methodology
+Bar in that spec — each must show out-of-sample lift before shipping.
 (Phase 2 — backtest panel, σ lamp, divergence lamp — shipped 2026-07-12.
 Phase 3 — offline PWA: service worker + lastgood cache fallback — shipped 2026-07-12.
-Phase 4 — watchdog cron + Telegram alerts — shipped 2026-07-12.)
+Phase 4 — watchdog cron + Telegram alerts — shipped 2026-07-12.
+Phase 5 — risk layer, spec in `docs/risk-layer-spec.md` — shipped 2026-07-13:
+  C encoded IPS (`exitmon2:ips`, verdict repeat-back), A vol-targeted position sizing
+  (`computeSizing`, "Position sizing" card), B walk-forward backtest (`rowsWf`/`rowsIn` toggle).)

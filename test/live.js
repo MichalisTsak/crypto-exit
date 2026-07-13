@@ -28,11 +28,17 @@ new Function("localStorage","document", js)(ls, doc);   // real global fetch
   console.log("valuation note:", grab(/on-chain: MVRV[^<]*|proxy[^<]*/));
   const wires = [...capHtml.matchAll(/<div class="tag" style="margin-top:3px">([^<]+)<\/div>/g)].map(m=>m[1]);
   console.log("tripwires:"); wires.forEach(w=>console.log("  ", w.replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&")));
-  // open the track-record panel and print the real backtest
-  handlers.click({ target: { closest: () => ({ dataset: { action: "evidence" } }) } });
-  const bands = [...capHtml.matchAll(/<span style="font-size:12px[^>]*>([^<]+)<\/span><span class="tag">(N=\d+)<\/span><\/div>(?:<div class="mono"[^>]*>([^<]+)<\/div>)?/g)];
-  console.log("track record:");
-  bands.forEach(b=>console.log("  ", (b[1]+" "+b[2]+"  "+(b[3]||"")).replace(/&lt;/g,"<").replace(/&gt;/g,">")));
+  // Phase 5-A: position sizing card (default maxDD=40, no holdings → % only)
+  console.log("sizing exposure:", grab(/Recommended exposure<\/span><span class="big-num">\d+%/));
+  console.log("sizing why:", grab(/Why: BTC vol[^<]*/));
+  const click = (action) => handlers.click({ target: { closest: () => ({ dataset: { action } }) } });
+  const bandsOf = () => [...capHtml.matchAll(/<span style="font-size:12px[^>]*>([^<]+)<\/span><span class="tag">(N=\d+)<\/span><\/div>(?:<div class="mono"[^>]*>([^<]+)<\/div>)?/g)]
+    .map(b=>("  "+b[1]+" "+b[2]+"  "+(b[3]||"")).replace(/&lt;/g,"<").replace(/&gt;/g,">"));
+  // open the track-record panel; Phase 5-B: print BOTH walk-forward (default) and in-sample
+  click("evidence");
+  console.log("track record — WALK-FORWARD (honest):"); bandsOf().forEach(l=>console.log(l));
+  click("wf-off");
+  console.log("track record — IN-SAMPLE (optimistic, for contrast):"); bandsOf().forEach(l=>console.log(l));
   console.log("caveat:", capHtml.includes("evidence, not prophecy") ? "shown" : "MISSING");
   console.log("NaN check:", capHtml.includes("NaN")?"FAIL":"clean");
   process.exit(0);

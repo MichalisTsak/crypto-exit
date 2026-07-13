@@ -171,6 +171,18 @@ const check = (name, cond) => { if (cond) { pass++; console.log("  ok  " + name)
   const l2 = await boot(storeL);
   check("no budget → sizing prompts instead of guessing", l2.cap.html.includes("max-drawdown tolerance") && !/Recommended exposure<\/span>/.test(l2.cap.html));
 
+  // K — Phase 5-B: walk-forward vs in-sample backtest (fixes the look-ahead in Momentum calibration)
+  console.log("\n[K] walk-forward backtest");
+  const kk = await boot(storeA); // storeA is fully warmed (history + backtest cached)
+  clickAction(kk, "evidence");
+  check("evidence opens in walk-forward by default", kk.cap.html.includes("no look-ahead") && kk.cap.html.includes("Walk-forward replay") && kk.cap.html.includes("90d later: median"));
+  clickAction(kk, "wf-off");
+  check("in-sample view available for contrast", kk.cap.html.includes("knew") && kk.cap.html.includes("In-sample replay"));
+  check("in-sample still renders bands + today marker", kk.cap.html.includes("90d later: median") && kk.cap.html.includes("◀ today"));
+  clickAction(kk, "wf-on");
+  check("toggles back to the honest walk-forward default", kk.cap.html.includes("no look-ahead"));
+  check("no NaN in either backtest view", !kk.cap.html.includes("NaN"));
+
   console.log("\n" + pass + " passed, " + failCount + " failed");
   process.exit(failCount ? 1 : 0);
 })();

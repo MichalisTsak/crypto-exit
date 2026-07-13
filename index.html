@@ -375,8 +375,11 @@
   }
 
   // ---------- backtest: replay the pillar engine over every historical day ----------
-  // In-sample by design (percentiles use the full distribution) — disclosed in the UI.
-  // Weekly values use the last COMPLETED week (no lookahead); V replays from MVRV Z only.
+  // Computes TWO band sets per day so the UI can show the honesty gap:
+  //   walk-forward — Momentum percentile uses ONLY weeks up to that day (no look-ahead);
+  //   in-sample    — Momentum percentile uses the full distribution (each day "knew" its future).
+  // Only the Momentum pillar was calibrated (Trend/Valuation/Sentiment use fixed bands), so it is
+  // the only source of look-ahead. Weekly values use the last COMPLETED week; V replays MVRV Z only.
   function buildBacktest(days, weekly, fngMap, zMap){
     if(!days || days.length<600 || !weekly || weekly.length<20) return null;
     const n=days.length, closes=days.map(x=>x[1]);
@@ -387,17 +390,30 @@
     { let cur=null,pos=-1;
       for(let i=0;i<n;i++){ const wk=Math.floor((days[i][0]-WEEK0)/604800000); if(wk!==cur){cur=wk;pos++;} wkPos[i]=pos; } }
     const wser=rsiSeries(weekly,14), wsorted=wser.slice().sort((a,b)=>a-b);
+    // expanding-window percentile: rank of wser[k] within wser[0..k] only (no future weeks)
+    const wfPct=new Array(wser.length);
+    for(let k=0;k<wser.length;k++){ let c=0; for(let j=0;j<=k;j++) if(wser[j]<=wser[k]) c++; wfPct[k]=c/(k+1)*100; }
+    const scoreP=(mp)=> mp<10?-2 : mp<30?-1 : mp<=70?0 : mp<=90?1 : 2;
+    const scoreFixed=(w)=> w<30?-2 : w<45?-1 : w<=55?0 : w<=70?1 : 2;   // pre-calibration fallback (matches live)
     const wcum=new Array(weekly.length+1); wcum[0]=0;
     for(let k=0;k<weekly.length;k++) wcum[k+1]=wcum[k]+weekly[k];
     const minL=new Array(n).fill(null);
     for(let i=89;i<n;i++){ let mn=Infinity; for(let k=i-89;k<=i;k++) if(closes[k]<mn) mn=closes[k]; minL[i]=mn; }
-    const bands=[
+    const mkBands=()=>[
       { label:"≤ −1.0 · strong bearish read", lo:-Infinity, hi:-1.0 },
       { label:"−1.0 … −0.5 · bearish read",   lo:-1.0,      hi:-0.5 },
       { label:"−0.5 … +0.5 · neutral read",   lo:-0.5,      hi: 0.5 },
       { label:"+0.5 … +1.0 · bullish read",   lo: 0.5,      hi: 1.0 },
       { label:"≥ +1.0 · strong bullish read", lo: 1.0,      hi: Infinity },
     ].map(b=>({ ...b, f30:[], f90:[] }));
+    const bandsWf=mkBands(), bandsIn=mkBands();
+    const bucket=(bands,M,T,V,S,St,price,i)=>{
+      const parts=[[T,30],[M,20],[V,25],[S,15],[St,10]].filter(x=>x[0]!=null);
+      if(!parts.length) return false;
+      const comp=parts.reduce((a,x)=>a+x[0]*x[1],0)/parts.reduce((a,x)=>a+x[1],0);
+      const b=bands.find(x=>comp>x.lo && comp<=x.hi);
+      b.f30.push(closes[i+30]/price-1); b.f90.push(closes[i+90]/price-1); return true;
+    };
     let lastF=null,lastFi=-99,lastZ=null,lastZi=-99, usedDays=0, firstI=null;
     for(let i=209;i<n-90;i++){
       const dn=Math.floor(days[i][0]/86400000);
@@ -415,10 +431,12 @@
         else if(dist<=-0.02&&dist>-0.08) T=golden?-1:-2;
         else T=-2;
       }
-      let M=null; const wp=wkPos[i];
-      if(wp>=15 && wp-15<wser.length && wsorted.length>=100){
-        const mp=pctile(wsorted, wser[wp-15]);
-        M = mp<10?-2 : mp<30?-1 : mp<=70?0 : mp<=90?1 : 2;
+      // Momentum two ways — in-sample (full percentile) vs walk-forward (expanding, ≥100 prior weeks)
+      let Min=null, Mwf=null; const wp=wkPos[i];
+      if(wp>=15 && wp-15<wser.length){
+        const k=wp-15, rv=wser[k];
+        Min = wsorted.length>=100 ? scoreP(pctile(wsorted, rv)) : scoreFixed(rv);
+        Mwf = (k+1)>=100 ? scoreP(wfPct[k]) : scoreFixed(rv);
       }
       let V=null;
       if(Z!=null){ V=zMvrv(Z);
@@ -426,19 +444,15 @@
       let S=null; if(F!=null) S = F<20?2:F<35?1:F<=60?0:F<=75?-1:-2;
       let St=null;
       if(i>=179){ const mL=minL[i], mP=minL[i-90]; St = mL>mP*1.02?2 : mL<mP*0.98?-2 : 0; }
-      const parts=[[T,30],[M,20],[V,25],[S,15],[St,10]].filter(x=>x[0]!=null);
-      if(!parts.length) continue;
-      const comp=parts.reduce((a,x)=>a+x[0]*x[1],0)/parts.reduce((a,x)=>a+x[1],0);
-      const b=bands.find(x=>comp>x.lo && comp<=x.hi);
-      b.f30.push(closes[i+30]/price-1); b.f90.push(closes[i+90]/price-1);
-      usedDays++; if(firstI==null) firstI=i;
+      bucket(bandsIn, Min, T,V,S,St, price, i);
+      if(bucket(bandsWf, Mwf, T,V,S,St, price, i)){ usedDays++; if(firstI==null) firstI=i; }
     }
     if(!usedDays) return null;
-    const rows=bands.map(b=>({ label:b.label, lo:b.lo, hi:b.hi, n:b.f90.length,
+    const mkRows=(bands)=>bands.map(b=>({ label:b.label, lo:b.lo, hi:b.hi, n:b.f90.length,
       med30: b.f30.length?median(b.f30):null, med90: b.f90.length?median(b.f90):null,
       up90: b.f90.length ? b.f90.filter(x=>x>0).length/b.f90.length*100 : null }));
-    return { rows, usedDays, fromYear: new Date(days[firstI][0]).getUTCFullYear(),
-      hasV: !!zMap, hasS: !!fngMap };
+    return { rowsWf: mkRows(bandsWf), rowsIn: mkRows(bandsIn), usedDays,
+      fromYear: new Date(days[firstI][0]).getUTCFullYear(), hasV: !!zMap, hasS: !!fngMap };
   }
 
   // ---------- fear & greed, fx ----------
@@ -553,7 +567,7 @@
     th:{...DEFAULT_TH}, floors:null, metrics:{ mvrvZ:null, ma200w:null, ts:null },
     ips:{...DEFAULT_IPS},
     srcStatus:{}, saveMsg:"", policyMsg:"",
-    ui:{ rails:false, exit:false, profit:false, config:false, evidence:false, policy:false },
+    ui:{ rails:false, exit:false, profit:false, config:false, evidence:false, policy:false, wf:true },
   };
 
   function loadPrefs(){
@@ -984,10 +998,15 @@
     if(ui.evidence){
       if(!bt) evInner = '<div class="sub p12 tag">Needs the full 2017→now history — currently offline or in short-history mode. Tap Refresh when back online.</div>';
       else {
-        const cur = d.composite;
+        const cur = d.composite, rows = ui.wf ? bt.rowsWf : bt.rowsIn;
+        const tab=(on,act,label)=>'<button class="btn'+(on?" amber":"")+'" data-action="'+act+'" style="'+(on?"background:"+C.amber+";color:#1A1A1A":"")+'">'+label+'</button>';
         evInner = '<div class="sub p12">'+
-          '<div class="tag" style="margin-bottom:8px">Every day since '+bt.fromYear+' scored with the same pillar math, then checked against what BTC actually did next ('+bt.usedDays.toLocaleString("en-US")+' days):</div>'+
-          bt.rows.slice().reverse().map(r=>{
+          '<div style="display:flex;gap:6px;margin-bottom:8px">'+tab(ui.wf,"wf-on","Walk-forward")+tab(!ui.wf,"wf-off","In-sample")+'</div>'+
+          '<div class="tag" style="margin-bottom:8px">'+
+            (ui.wf ? "Each day scored using only the data available up to that day — no look-ahead. This is the honest number."
+                   : "Momentum percentiles use the full 2017→now distribution, so each day “knew” its own future. Optimistic — shown only for contrast.")+
+            ' '+bt.usedDays.toLocaleString("en-US")+' days since '+bt.fromYear+'.</div>'+
+          rows.slice().reverse().map(r=>{
             const isCur = cur!=null && cur>r.lo && cur<=r.hi;
             return '<div style="padding:7px 9px;border-radius:7px;margin-bottom:4px;border:1px solid '+(isCur?C.amber:"var(--etch)")+';'+(isCur?("background:"+C.amber+"14"):"")+'">'+
               '<div class="row"><span style="font-size:12px;color:'+(isCur?C.amber:C.dim)+'">'+esc(r.label)+(isCur?' ◀ today':'')+'</span>'+
@@ -996,7 +1015,7 @@
                    : '<div class="tag">no samples in this band</div>')+
             '</div>';
           }).join("")+
-          '<div class="tag" style="margin-top:6px">In-sample replay, two cycles — evidence, not prophecy. Valuation replayed from MVRV Z only'+(bt.hasV?" (series starts 2022)":" (series unavailable)")+'; F&G'+(bt.hasS?" from 2018":" unavailable")+'; weekly values use the last completed week. Past ≠ future.</div>'+
+          '<div class="tag" style="margin-top:6px">'+(ui.wf?"Walk-forward":"In-sample")+' replay, two cycles — evidence, not prophecy. Valuation replayed from MVRV Z only'+(bt.hasV?" (series starts 2022)":" (series unavailable)")+'; F&G'+(bt.hasS?" from 2018":" unavailable")+'; weekly values use the last completed week. Past ≠ future.</div>'+
         '</div>';
       }
     }
@@ -1130,6 +1149,8 @@
     else if(a==="ccy"){ state.ccy = state.ccy==="USD"?"EUR":"USD"; lsSet("exitmon2:ccy",state.ccy); render(); }
     else if(a==="rails"){ state.ui.rails=!state.ui.rails; render(); }
     else if(a==="evidence"){ state.ui.evidence=!state.ui.evidence; render(); }
+    else if(a==="wf-on"){ state.ui.wf=true; render(); }
+    else if(a==="wf-off"){ state.ui.wf=false; render(); }
     else if(a==="exit"){ state.ui.exit=!state.ui.exit; render(); }
     else if(a==="profit"){ state.ui.profit=!state.ui.profit; render(); }
     else if(a==="config"){ state.ui.config=!state.ui.config; render(); }
