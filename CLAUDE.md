@@ -109,10 +109,14 @@ about a market event without opening the app. Does NOT modify `index.html` or th
 
 ## Backlog (agreed with user, not built)
 **Phase 6 — DCA scheduler (spec'd, not built): see [`docs/dca-scheduler-spec.md`](docs/dca-scheduler-spec.md).**
-Per-coin weekly buy plan (`ips.dca`) + a pacing multiplier derived from Phase 5-A's existing
-sizing gap (0.5×–2.0×, no new indicator) + an idle-cash deployment timeline. Explicitly cannot
-judge whether to *add* a new coin (needs live research, outside the deterministic architecture)
-— schedules buys across the existing watchlist only.
+Per-coin weekly buy plan (`ips.dca`) + a 0.5×–2.0× pacing multiplier. Key design decision
+(researched): pace off **cheapness = Valuation + Sentiment pillars** (MVRV + F&G — the signals
+evidence says drive good DCA timing), NOT the exposure gap (that's momentum/risk-off, which would
+slow buying at the best entries). Exposure gap = the *ceiling* (taper to 0 at target); rails/EXIT
+verdict = a safety cap at 1.0× (user chose "hold steady, don't accelerate through capitulation").
+No short-horizon dip trigger (momentum trap). Reuses walk-forward-validated pillars, no new
+indicator. Explicitly cannot judge whether to *add* a new coin (needs live research) — schedules
+buys across the existing watchlist only.
 Also still open: config export/import (QR/clipboard JSON — would let the Phase 5-C policy be
 backed up / moved between devices), GitHub Pages walkthrough. Tier-2/3 risk-layer ideas from
 [`docs/risk-layer-spec.md`](docs/risk-layer-spec.md) (bootstrap CIs, composite-agreement

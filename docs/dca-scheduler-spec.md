@@ -1,90 +1,118 @@
-# DCA scheduler spec — regime-aware buy pacing
+# DCA scheduler spec — cheapness-paced buy scheduling
 
-Status: **proposal, not built.** Builds directly on Phase 5-A (`computeSizing`) and Phase 5-C
-(`exitmon2:ips`) from [`docs/risk-layer-spec.md`](risk-layer-spec.md) — read that first for the
-sizing math this reuses. Nothing here ships until confirmed.
+Status: **proposal, not built.** Builds on Phase 5-A (`computeSizing`) and Phase 5-C
+(`exitmon2:ips`) from [`docs/risk-layer-spec.md`](risk-layer-spec.md). Nothing ships until confirmed.
+Supersedes the first draft of this spec (which paced buys off the exposure gap — that was wrong;
+see "Signal choice" below).
 
 ## Why this exists
 
-The user already gets a recommended *total* exposure (Position sizing card) and a pre-committed
-policy (IPS). What's missing: they DCA a fixed weekly amount into 5 specific coins, and asked
-whether the app can turn "give me your allocation + buy plan" into something useful — informed
-by the same regime/exposure signal already computed, without predicting anything new.
+The user DCAs a fixed weekly amount into their coins and asked whether the app can turn
+"allocation + buy plan" into something useful, informed by the engine's signals. This schedules
+buys across the *existing* `COINS` list. It does NOT judge whether to *add* a new coin — that
+needs live qualitative research, outside the deterministic/keyless/no-AI architecture. That stays
+a conversation.
 
-The academic hook (from the value-averaging research already cited in `risk-layer-spec.md`):
-contributing *more* when underexposed/cheap and *less* when at/over target has real, if
-methodology-sensitive, evidence of beating fixed-pace DCA on IRR. This feature automates that
-adjustment using signals the engine already produces — it adds no new indicator.
+## Signal choice — what the research says (the crux; get this right)
 
-**Explicit boundary:** this schedules buys across the user's *existing* `COINS` list. It does
-not, and cannot, judge whether to add a new coin (e.g. "is HYPE a good addition") — that requires
-live qualitative research (revenue trends, tokenomics, correlation judgment) outside the
-deterministic, keyless, no-AI architecture. That stays a conversation, not a feature.
+**Exit-timing and buy-timing are opposite problems and need opposite signals.**
+- The engine was built for **exit-timing** = a momentum/trend problem (is the trend/rails
+  breaking). The risk score and the Phase 5-A exposure gap are dominated by this.
+- **Buy-timing = a mean-reversion / cheapness problem.** Evidence:
+  - "Buy the dip" **fails at short horizons** — a few-weeks dip has momentum (keeps dipping);
+    AQR calls dip-buying *"value investing at a momentum horizon."* → **do NOT key the accelerator
+    off short-term price drops or the crash-risk score.**
+  - It **works at cycle horizons**, where valuation mean-reverts:
+    - **MVRV Z-score** is *"the single best on-chain predictor for DCA timing"* — low MVRV →
+      highest historical 30d/90d forward returns.
+    - **Fear & Greed, contrarian** — doubling buys under F&G 25 / pausing over 75 backtested
+      ~1,145% vs buy-and-hold, Sharpe 1.38 vs 0.88, max drawdown −52% vs −78%.
 
-## Design
+**The app already computes both, as calibrated pillars:** MVRV → **Valuation pillar `V`**,
+F&G → **Sentiment pillar `S`** (both oriented so *higher = cheaper/more fearful = accumulate more*).
+So the accelerator reuses already-(walk-forward-)validated signals — no new indicator.
+
+**Why the first draft (exposure gap) was wrong:** in a crash to deep value the risk score spikes →
+`wTarget` drops → the gap shrinks → it would *slow* buying exactly when the evidence says accelerate.
+Sizing and DCA-pacing correctly use *different* signals — not an inconsistency, a separation of
+concerns: sizing = "how much risk to hold" (whole risk-weighted composite, cuts in crashes);
+DCA-pace = "is now a good time to add" (cheapness, leans in on fear/undervaluation).
+
+## Design — three levers, each doing what it's good at
+
+| Lever | Source | Role |
+|---|---|---|
+| **Pace** | cheapness = Valuation `V` + Sentiment `S` | drives the 0.5×–2.0× multiplier |
+| **Ceiling** | exposure gap from `computeSizing` | tapers buys to 0 as you reach target exposure |
+| **Safety cap** | rails / EXIT verdict | caps acceleration at 1.0× during a confirmed breakdown |
 
 ### New config: `ips.dca`
-A map of coin symbol → weekly $ amount, e.g. `{BTC:20, ETH:20, SOL:20, NEAR:15, LTC:7}`.
-Extends `exitmon2:ips` (no new localStorage key) — it's a policy parameter like `maxDD`.
-`DEFAULT_IPS.dca = {}`.
+Coin symbol → weekly $ amount, e.g. `{BTC:20, ETH:20, SOL:20, NEAR:15, LTC:7}`. Extends
+`exitmon2:ips` (no new key). `DEFAULT_IPS.dca = {}`.
 
-### Accumulation tilt — derived from the existing sizing gap, not a new signal
-Reuses `computeSizing()`'s output (`wTarget`, `wCur`, `band`) — no new calibration, no new data:
-
+### Pace — cheapness multiplier
 ```
-gap = wTarget - wCur                          // >0 = underexposed, <0 = at/over target
-accel =
-  gap <= -band  → 0.5                         // meaningfully over target: ease off
-  -band < gap <= band → 1.0                   // within the deadband: normal pace, no change
-  gap > band    → 1 + clamp((gap-band)/band, 0, 1)   // meaningfully under: scale up to 2.0×
+parts = [];  if V!=null parts.push([V,25]);  if S!=null parts.push([S,15])
+valueScore = parts.length ? Σ(v·w)/Σw : null            // ∈ [−2,+2]; + = cheap/fearful
+accel = valueScore==null ? 1.0 : clamp(1 + 0.5·valueScore, 0.5, 2.0)
+        // V=S=+2 → 2.0×  ·  neutral → 1.0×  ·  V=S=−2 (euphoria) → 0.5×
 ```
+Bounded 0.5×–2.0× so a noisy day can't swing the suggestion wildly. **No short-horizon price-dip
+term** — deliberately excluded (momentum trap, above).
 
-Bounded 0.5×–2.0× so a noisy day never swings the suggested contribution wildly. If `computeSizing()`
-returns null (no `maxDD` set), `accel` is null and the card shows plan/%/total only — no pacing
-suggestion fabricated from nothing.
+### Ceiling — don't buy past your target exposure
+Reuses `computeSizing()`'s `wTarget`/`wCur`/`band`:
+```
+headroom = wTarget − wCur
+ceiling  = headroom<=0 ? 0 : headroom>=band ? 1 : headroom/band    // taper in the last `band`
+accel *= ceiling
+```
+If sizing is null (no `maxDD`) or `wCur` unknown (no holdings): `ceiling = 1` — pace on cheapness
+alone, honestly unrestricted, since exposure can't be known.
 
-### Per-coin table
-For each `COINS` entry with a nonzero `ips.dca[sym]`: weekly amount, % of weekly total, and
-`suggested = weekly * accel` (only shown when `accel != null`). Weekly total = sum of all entries.
+### Safety cap — rails are law (user choice 2026-07-13: hold steady at capitulation)
+```
+if verdict is EXIT WATCH or EXIT SIGNAL:  accel = min(accel, 1.0)
+```
+Keeps base DCA running through a structural break but never *accelerates* into one. (A future
+config could expose the 1.0 cap as a slider — the two rejected options were 1.5× and 2.0×.)
 
-### Idle-cash deployment timeline
-Reuses `ips.totalValue`/`ips.holdings` (already collected for Position sizing):
-`idle = totalValue - holdings`; `weeksAtCurrentPace = idle / weeklyTotal`; if `accel != null` and
-`accel != 1`, also show `weeksAtSuggestedPace = idle / (weeklyTotal * accel)` as a secondary line.
-Hidden if `totalValue`/`holdings` unset (same null-handling as Position sizing).
+### Per-coin table & deployment timeline
+For each `COINS` entry with nonzero `ips.dca[sym]`: weekly amount, % of weekly total,
+`suggested = weekly · accel`. Weekly total = Σ entries.
+`idle = totalValue − holdings`; `weeksAtBasePace = idle / weeklyTotal`; if `accel != 1`, also
+`weeksAtSuggestedPace = idle / (weeklyTotal · accel)`. Timeline hidden if `totalValue`/`holdings` unset.
 
 ### UI
-New "DCA schedule" card, placed after Position sizing (they share the same underlying gap).
-Editable table (reuse the `nin` pattern, grouped `data-group="dca"`, keyed by coin symbol) plus
-a plain "why" line mirroring Position sizing's tone, e.g.: *"You're 12pts under target exposure
-→ pacing ×1.4 this week. Idle cash clears in ~6 weeks at this pace (~4 weeks at today's tilt)."*
+New "DCA schedule" card after Position sizing. Editable table (`nin` pattern, `data-group="dca"`,
+keyed by symbol) + a plain "why" line, e.g.: *"MVRV cheap + fear → pace ×1.6 this week. You have
+room to target (58% vs your 41%). Idle cash clears in ~5 weeks at this pace."* When capped: *"Exit
+watch — holding base pace, not accelerating, through the breakdown."*
 
 ### Degradation
-- No `maxDD` set → table/%/total render, no accel suggestion, prompt to set policy.
-- `ips.dca` empty → prompt to set a plan (same pattern as "no pre-committed plan").
-- No `totalValue`/`holdings` → deployment-timeline line hidden.
-- Works with any subset of `COINS` (a coin with no `dca` entry simply doesn't appear in the table).
+No `V`/`S` → `accel=1.0` (base pace). No `maxDD`/holdings → no ceiling, no timeline. Empty
+`ips.dca` → prompt to set a plan. Any `COINS` subset works.
 
 ## Methodology Bar check
-1. **Rationale**: value-averaging literature (already cited), applied via a signal the engine
-   already validated (walk-forward backtest, Phase 5-B) — not a new prediction.
-2. **OOS validation**: *not done for v1, flagged honestly.* This is a scheduling/execution
-   overlay on an already-validated signal, not a new return-predicting model — a full backtest
-   of "accel-paced DCA vs. fixed DCA" is a plausible Tier-2 follow-up (extend `buildBacktest`
-   to simulate both schedules and compare realized cost basis / IRR) but isn't required to ship
-   a bounded, sanity-capped convenience feature that never leverages or auto-trades.
-3. **Redundancy**: zero — derives entirely from `computeSizing`'s existing output, no new indicator.
-4. **Robustness**: the 0.5×–2.0× cap exists specifically so small gap changes don't cause wild
-   suggestion swings.
-5. **Falsifiability**: the underlying claim ("underexposed + favorable regime → higher expected
-   value from buying more now") is the same claim Phase 5-A already makes and Phase 5-B already
-   validates walk-forward — this feature doesn't add a new unfalsifiable claim on top.
+1. **Rationale**: MVRV + contrarian-F&G DCA both have published cycle-horizon evidence; applied via
+   the exact pillars the engine already validated walk-forward (Phase 5-B). Written before building.
+2. **OOS validation**: the *signals* (V, S) are already walk-forward-validated. A backtest of
+   "cheapness-paced DCA vs fixed DCA" (realized cost basis / IRR) is a good Tier-2 follow-up
+   (extend `buildBacktest` to simulate both), but this is a bounded, capped, never-leverage,
+   never-auto-trade execution overlay on validated signals — acceptable to ship without it, flagged.
+3. **Redundancy**: none — the *pace* uses V/S (cheapness), the *ceiling* uses the exposure gap;
+   they're deliberately different axes, not the same signal twice.
+4. **Robustness**: 0.5×–2.0× clamp + the ceiling taper prevent wild swings from small input moves.
+5. **Falsifiability**: rests on the same falsifiable claim as MVRV/F&G DCA (cheap+fearful → higher
+   forward returns) — adds no new unfalsifiable claim. Explicitly rejects the short-horizon dip-buy
+   claim the evidence refutes.
 
 ## Tests (extend `test/harness.js`)
-`accel` bounds (0.5 floor, 1.0 deadband, 2.0 cap) against synthetic gaps; per-coin % sums to 100;
-deployment-timeline arithmetic; degrades cleanly with no `maxDD`, empty `dca`, or no
-`totalValue`/`holdings`; works with a partial coin subset; no NaN.
+`accel` bounds (0.5 floor at V=S=−2, 1.0 neutral, 2.0 cap at V=S=+2); ceiling taper to 0 at/over
+target; EXIT verdict caps accel to ≤1.0 even when cheapness wants more (the capitulation case);
+per-coin % sums to 100; deployment-timeline arithmetic (base vs suggested pace); degrades with no
+V/S, no maxDD, empty dca, no holdings; partial coin subset; no NaN.
 
 ## Effort / risk
-Low-medium. Pure derived math, no new data sources, no new localStorage key. Main risk is UI
-clutter — the Policy/Sizing/DCA trio needs to stay legible, not turn into a spreadsheet.
+Low-medium. Derived math from existing pillars, no new data source, no new localStorage key. Main
+risk is UI clutter — Policy / Sizing / DCA must stay legible, not become a spreadsheet.
