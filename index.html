@@ -978,7 +978,7 @@
         '<div class="tag" style="margin-top:6px">'+(hasCur?("you "+pct(sz.wCur)+" · "):"")+'amber = model'+(hasCur?", grey = you":"")+'</div>'+
         (act==="hold" ? '<div style="margin-top:9px;color:'+C.green+';font-size:13px">Within range — hold. No trade needed.</div>' :
          act ? '<div style="margin-top:9px;font-size:13px;color:'+(act==="trim"?C.warn:C.text)+'"><b>'+(act==="trim"?"Trim":"Add")+' ~'+pct(Math.abs(delta))+'</b>'+(amt!=null?(" ("+sym+fmtPrice(disp(amt))+")"):"")+(act==="trim"&&amt!=null?" — stage it: 4× "+sym+fmtPrice(disp(amt/4))+" weekly, no single market-sell.":act==="trim"?" — stage over ~4 weekly tranches.":"")+'</div>' :
-         '<div class="tag" style="margin-top:9px">Add your total portfolio &amp; current crypto value in the policy card to see the '+sym+' trade.</div>')+
+         '<div class="tag" style="margin-top:9px">Add your investable pool &amp; current crypto amount in the policy card to see the '+sym+' trade.</div>')+
         '<div class="tag" style="margin-top:9px;line-height:1.7">Why: BTC vol '+(sz.volAnn*100).toFixed(0)+'%/yr → vol cap '+pct(sz.wVol)+
           (sz.m<1?(" · signal ×"+sz.m.toFixed(2)):"")+
           (sz.topZone?(" · top-zone ×"+Math.pow(0.8,sz.topZone).toFixed(2)):"")+
@@ -1100,9 +1100,9 @@
       '<div class="up faint" style="margin:10px 0 4px">Risk parameters (feed position sizing)</div>'+
       nin("ips","maxDD","Max drawdown I can stomach (%)",ip.maxDD,"")+
       nin("ips","maxPos","Hard exposure cap (%)",ip.maxPos,"")+
-      nin("ips","totalValue","Total portfolio value",ip.totalValue)+
-      nin("ips","holdings","Current crypto value",ip.holdings)+
-      '<div class="tag" style="margin:2px 0 4px">Max-drawdown sets the volatility target; total &amp; current value turn the recommendation into a '+(st.ccy==="EUR"&&st.fx!=null?"€":"$")+' trade. Left blank → percentages only.</div>'+
+      nin("ips","totalValue","Total investable pool (crypto + cash)",ip.totalValue)+
+      nin("ips","holdings","Amount in crypto now",ip.holdings)+
+      '<div class="tag" style="margin:2px 0 4px">The pool = crypto plus the cash/stables you\'d rotate it into — so pool ≥ crypto amount. Max-drawdown sets the volatility target; both values turn the recommendation into a '+(st.ccy==="EUR"&&st.fx!=null?"€":"$")+' trade. Left blank → percentages only.</div>'+
       '<div style="display:flex;gap:8px;margin-top:12px">'+
         '<button class="btn amber" data-action="save-policy" style="background:'+C.amber+';color:#1A1A1A">Save policy</button></div>'+
       (st.policyMsg?'<div class="tag" style="color:'+C.green+';margin-top:8px">'+esc(st.policyMsg)+'</div>':'')+
