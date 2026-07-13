@@ -80,10 +80,19 @@ about a market event without opening the app. Does NOT modify `index.html` or th
   = glue (boot → snapshot → decide → Telegram). Telegram creds are **GitHub secrets**
   (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) — never in client JS; missing creds → logs, no send.
 - **Quota**: cron is every 2h but cross-run state (engine localStorage incl. 48h regime memory +
-  API caches) persists via `actions/cache` under `watchdog/.state/` (gitignored), so bitcoin-data
-  stays cached 12h → ~2 cold fetches/day, under its 15/day. The runner's IP has its own quota,
-  separate from the phone's. Regime-flip alerts ride the engine's own 48h hysteresis (no extra
-  debounce). Cache loss just re-baselines silently (safe direction — never a false alert).
+  API caches) persists via `actions/cache` under `watchdog/.state/` (gitignored), so bitcoin-data's
+  on-chain cache stays warm 12h → ~2 cold refreshes/day (~8 requests), under its 15/day. NOTE:
+  GitHub runners share a pool of egress IPs across all customers, so if bitcoin-data rate-limits by
+  IP the watchdog can still hit 429s from unrelated jobs — in that case the engine degrades to the
+  drawdown proxy for Valuation, and the watchdog's regime read can diverge from the phone's (which
+  uses the user's own IP). Not fatal, just less precise on those runs. Regime-flip alerts ride the
+  engine's own 48h hysteresis (no extra debounce). Cache loss / an offline run re-baselines silently:
+  never a false alert, but a transition that completes entirely inside that gap can be MISSED — the
+  cost of the cache-based design (low risk while the 2h cron keeps the cache warm within cache TTL).
+- **At-least-once alerting**: `check.js` only advances its baseline snapshot when the read is
+  trusted AND any alert actually sent (`commitBaseline`); a failed Telegram send or an untrusted
+  read holds the old baseline so the next run re-detects and retries — an alert is never silently
+  dropped by a transient send failure.
 - Validate: `node test/watchdog.js` (offline). Live smoke = run `watchdog/check.js` with
   `WATCHDOG_STATE_DIR=<scratch>` (one real refresh, ~4 bitcoin-data reqs — sparingly).
 

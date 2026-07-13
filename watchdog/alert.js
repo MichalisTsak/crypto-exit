@@ -31,7 +31,10 @@ function decideAlert(prev, cur) {
   const prevTripped = prev.tripped || [], curTripped = cur.tripped || [];
   const newlyTripped = curTripped.filter((id) => !prevTripped.includes(id));
   const escalated = tierRank(cur.verdictKey) > tierRank(prev.verdictKey);
-  const eased = tierRank(prev.verdictKey) >= 2 && tierRank(cur.verdictKey) < tierRank(prev.verdictKey);
+  // A drop *into* LOW CONFIDENCE is the monitor going blind (degraded coverage), not
+  // a genuine easing of risk — never frame it as a "✅ all clear" stand-down.
+  const eased = tierRank(prev.verdictKey) >= 2 && tierRank(cur.verdictKey) < tierRank(prev.verdictKey)
+    && cur.verdictKey !== "LOWCONF";
   const regimeFlipped = cur.regimeKey !== prev.regimeKey;
 
   if (!escalated && !eased && !regimeFlipped && newlyTripped.length === 0)
@@ -61,4 +64,14 @@ function buildMessage(decision, pageUrl) {
   return [decision.header, ...decision.lines].join("\n") + foot;
 }
 
-module.exports = { decideAlert, buildMessage, tierRank, trusted, esc, fmtPrice };
+// Whether to advance the stored baseline snapshot to the current read. Never advance
+// on an untrusted read (would discard the last good baseline), and never advance past
+// an alert we failed to deliver — leave the old baseline so the next run re-detects the
+// transition and retries the send (at-least-once alerting).
+function commitBaseline(curTrusted, alerted, sent) {
+  if (!curTrusted) return false;
+  if (alerted && !sent) return false;
+  return true;
+}
+
+module.exports = { decideAlert, buildMessage, commitBaseline, tierRank, trusted, esc, fmtPrice };

@@ -3,7 +3,7 @@
 // against renames in index.html). Fully offline; never touches Telegram or the net.
 const { makeEnv } = require("./env");
 const { boot } = require("../watchdog/engine");
-const { decideAlert, buildMessage, tierRank } = require("../watchdog/alert");
+const { decideAlert, buildMessage, tierRank, commitBaseline } = require("../watchdog/alert");
 
 let pass = 0, failCount = 0;
 const check = (name, cond) => { if (cond) { pass++; console.log("  ok  " + name); } else { failCount++; console.log("  FAIL " + name); } };
@@ -43,6 +43,18 @@ const base = (o = {}) => Object.assign({
 
   const cleared = decideAlert(base({ tripped: ["trend"], lampInfo: { trend: { label: "x", severity: "warn" } } }), base({ tripped: [] }));
   check("clearing a lamp alone is quiet", cleared.alert === false);
+
+  // #3: dropping into LOW CONFIDENCE is a visibility loss, not a stand-down
+  const lowconf = decideAlert(base({ verdictKey: "ORANGE", verdictTitle: "EXIT WATCH" }), base({ verdictKey: "LOWCONF", verdictTitle: "LOW CONFIDENCE" }));
+  check("ease into LOW CONFIDENCE sends no false all-clear", lowconf.alert === false);
+  const realEase = decideAlert(base({ verdictKey: "ORANGE", verdictTitle: "EXIT WATCH" }), base());
+  check("a genuine ease to a regime still stands down", realEase.alert && realEase.kind === "standdown");
+
+  // #1: baseline must not advance past an undelivered alert or an untrusted read
+  check("commit after a clean no-alert read", commitBaseline(true, false, false) === true);
+  check("hold baseline on untrusted read", commitBaseline(false, false, false) === false);
+  check("commit after an alert that sent", commitBaseline(true, true, true) === true);
+  check("hold baseline when the alert failed to send", commitBaseline(true, true, false) === false);
 
   const msg = buildMessage(esc, "https://michalistsak.github.io/crypto-exit/");
   check("message renders header + link", msg.includes("EXIT WATCH") && msg.includes("Open dashboard") && msg.includes("crypto-exit"));

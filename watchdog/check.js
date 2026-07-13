@@ -11,7 +11,7 @@
 const fs = require("fs");
 const path = require("path");
 const { boot, makeStore, makeDoc } = require("./engine");
-const { decideAlert, buildMessage } = require("./alert");
+const { decideAlert, buildMessage, trusted, commitBaseline } = require("./alert");
 
 const STATE_DIR = process.env.WATCHDOG_STATE_DIR || path.join(__dirname, ".state");
 const STORE_FILE = path.join(STATE_DIR, "store.json");
@@ -83,15 +83,17 @@ function snapshot(state, d) {
 
   const cur = snapshot(s, wd.derive());
   const prev = readJson(SNAP_FILE);
-  writeJson(SNAP_FILE, cur); // always record for the next run
-
   const decision = decideAlert(prev, cur);
   console.log("watchdog: " + cur.verdictTitle + " · risk " + cur.risk + " · regime " + cur.regimeName +
     " · sources " + cur.btcN + (cur.offline ? " · OFFLINE" : ""));
-  if (!decision.alert) {
-    console.log("watchdog: no alert (" + decision.reason + ").");
-    process.exit(0);
-  }
-  await sendTelegram(buildMessage(decision, PAGE_URL));
+
+  let sent = false;
+  if (decision.alert) sent = await sendTelegram(buildMessage(decision, PAGE_URL));
+  else console.log("watchdog: no alert (" + decision.reason + ").");
+
+  // Only advance the baseline when the read is trustworthy AND any alert actually sent —
+  // otherwise keep the old snapshot so the next run re-detects the change and retries.
+  if (commitBaseline(trusted(cur), decision.alert, sent)) writeJson(SNAP_FILE, cur);
+  else console.log("watchdog: baseline held (untrusted read or undelivered alert) — will re-check next run.");
   process.exit(0);
 })();
