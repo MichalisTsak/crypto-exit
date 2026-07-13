@@ -108,7 +108,7 @@
   const DEFAULT_TH = { caution:52000, structural:48000, capitulation:42000, velocity:-12 };
   // Investment Policy Statement — decided when calm, repeated back under stress. Also holds
   // the risk parameters the position-sizing layer consumes (maxDD, totalValue, holdings, maxPos).
-  const DEFAULT_IPS = { objective:"", plan:"", maxDD:40, targetPos:"", totalValue:"", holdings:"", maxPos:100, reviewedOn:null };
+  const DEFAULT_IPS = { objective:"", plan:"", maxDD:40, targetPos:"", totalValue:"", holdings:"", maxPos:100, dca:{}, reviewedOn:null };
 
   const COINS = [
     { id:"bitcoin",      base:"BTC",    sym:"BTC",    name:"Bitcoin",       core:true },
@@ -840,6 +840,37 @@
     return { volAnn, sigTarget, wVol, m, topZone, cap, wTarget, wCur, total, held, band, maxDD };
   }
 
+  // ---- DCA scheduler: pace weekly buys by CHEAPNESS (Valuation+Sentiment), not the risk gap ----
+  // Buy-timing is mean-reversion (buy cheap), the opposite of the momentum/risk-off exit signal.
+  // Pace = V+S pillars; ceiling = exposure gap (stop at target); cap = rails (hold steady in a break).
+  function computeDca(d, sz){
+    const plan = (state.ips && state.ips.dca) || {};
+    const weekly = COINS.map(c=>({ sym:c.sym, amt:nOrNull(plan[c.sym]) }))
+      .filter(x=> x.amt!=null && x.amt>0);
+    if(!weekly.length) return null;
+    const weeklyTotal = weekly.reduce((a,x)=>a+x.amt,0);
+    // pace — cheapness from the Valuation (25) + Sentiment (15) pillars; + = cheap/fearful = buy more
+    const pill={}; d.pillars.forEach(p=>pill[p.key]=p.v);
+    const parts=[]; if(pill.V!=null) parts.push([pill.V,25]); if(pill.S!=null) parts.push([pill.S,15]);
+    const valueScore = parts.length ? parts.reduce((a,x)=>a+x[0]*x[1],0)/parts.reduce((a,x)=>a+x[1],0) : null;
+    let accel = valueScore==null ? 1 : clamp(1+0.5*valueScore, 0.5, 2);
+    // ceiling — taper to 0 as current exposure reaches target (don't buy past your risk budget)
+    let ceiling = 1;
+    if(sz && sz.wCur!=null){ const head=sz.wTarget-sz.wCur; ceiling = head<=0?0:head>=sz.band?1:head/sz.band; }
+    accel *= ceiling;
+    // safety cap — rails/EXIT verdict: keep base DCA but never accelerate into a confirmed breakdown
+    const capped = (d.verdict.key==="ORANGE" || d.verdict.key==="RED");
+    if(capped) accel = Math.min(accel, 1);
+    accel = Math.round(accel*100)/100;
+    // idle-cash deployment timeline
+    const total = sz ? sz.total : nOrNull((state.ips||{}).totalValue);
+    const held  = sz ? sz.held  : nOrNull((state.ips||{}).holdings);
+    const idle = (total!=null && held!=null) ? Math.max(0, total-held) : null;
+    const weeksBase = (idle!=null && weeklyTotal>0) ? idle/weeklyTotal : null;
+    const weeksSugg = (idle!=null && weeklyTotal>0 && accel>0) ? idle/(weeklyTotal*accel) : null;
+    return { weekly, weeklyTotal, valueScore, accel, ceiling, capped, idle, weeksBase, weeksSugg };
+  }
+
   // ================= RENDER =================
   const root = document.getElementById("root");
 
@@ -976,7 +1007,7 @@
           (hasCur?'<div class="dot" style="left:'+(sz.wCur*100)+'%;width:8px;height:8px;background:'+C.dim+';box-shadow:none"></div>':'')+'</div>'+
         '<div class="tag" style="margin-top:6px">'+(hasCur?("you "+pct(sz.wCur)+" · "):"")+'amber = model'+(hasCur?", grey = you":"")+'</div>'+
         (act==="hold" ? '<div style="margin-top:9px;color:'+C.green+';font-size:13px">Within range — hold. No trade needed.</div>' :
-         act ? '<div style="margin-top:9px;font-size:13px;color:'+(act==="trim"?C.warn:C.text)+'"><b>'+(act==="trim"?"Trim":"Add")+' ~'+pct(Math.abs(delta))+'</b>'+(amt!=null?(" ("+sym+fmtPrice(disp(amt))+")"):"")+(act==="trim"&&amt!=null?" — stage it: 4× "+sym+fmtPrice(disp(amt/4))+" weekly, no single market-sell.":act==="trim"?" — stage over ~4 weekly tranches.":"")+'</div>' :
+         act ? '<div style="margin-top:9px;font-size:13px;color:'+(act==="trim"?C.warn:C.text)+'"><b>'+(act==="trim"?"Trim":"Add")+' ~'+pct(Math.abs(delta))+'</b>'+(amt!=null?(" ("+sym+fmtPrice(amt)+")"):"")+(act==="trim"&&amt!=null?" — stage it: 4× "+sym+fmtPrice(amt/4)+" weekly, no single market-sell.":act==="trim"?" — stage over ~4 weekly tranches.":"")+'</div>' :
          '<div class="tag" style="margin-top:9px">Add your investable pool &amp; current crypto amount in the policy card to see the '+sym+' trade.</div>')+
         '<div class="tag" style="margin-top:9px;line-height:1.7">Why: BTC vol '+(sz.volAnn*100).toFixed(0)+'%/yr → vol cap '+pct(sz.wVol)+
           (sz.m<1?(" · signal ×"+sz.m.toFixed(2)):"")+
@@ -987,6 +1018,33 @@
       '</div>';
     }
     h += section("Position sizing"+(sz?" · "+(sz.wTarget*100).toFixed(0)+"%":""), "", szInner);
+
+    // DCA schedule — cheapness-paced buys across the watchlist
+    const dcaR = computeDca(d, sz);
+    let dcaInner;
+    if(!dcaR){
+      dcaInner = '<div class="sub p12 tag" style="color:'+C.dim+'">Set a weekly buy amount per coin in the policy card to get a cheapness-paced schedule. <button class="link" data-action="policy" style="padding:0">Open policy →</button></div>';
+    } else {
+      const pctOf = a => dcaR.weeklyTotal>0 ? Math.round(a/dcaR.weeklyTotal*100) : 0;
+      const line = (label,amt,strong)=> '<div class="row" style="padding:5px 0;border-top:1px solid var(--etch)">'+
+        '<span class="lab" style="font-size:13px'+(strong?";font-weight:600":"")+'">'+esc(label)+'</span>'+
+        '<span class="mono" style="font-size:13px">'+sym+fmtPrice(amt)+' → <span style="color:'+C.amber+'">'+sym+fmtPrice(amt*dcaR.accel)+'</span></span></div>';
+      const why = dcaR.valueScore==null ? "no valuation/sentiment read — base pace"
+        : dcaR.accel>1.05 ? "cheap / fearful — leaning in" : dcaR.accel<0.95 ? "rich / greedy — easing off" : "near fair value — steady";
+      dcaInner = '<div class="sub p12">'+
+        '<div class="row" style="align-items:baseline"><span class="l" style="font-size:13px;color:'+C.dim+'">This week’s pace</span>'+
+          '<span class="big-num">×'+dcaR.accel.toFixed(2)+'</span></div>'+
+        '<div class="tag" style="margin:4px 0 8px">'+esc(why)+
+          (dcaR.capped?' · <span style="color:'+C.warn+'">exit watch — holding base pace, not accelerating into the breakdown</span>':'')+
+          (dcaR.ceiling<1&&!dcaR.capped?' · near target exposure, tapering':'')+'</div>'+
+        '<div class="tag">weekly plan → suggested this week</div>'+
+        dcaR.weekly.map(w=>line(w.sym+"  "+pctOf(w.amt)+"%", w.amt, false)).join("")+
+        line("Total", dcaR.weeklyTotal, true)+
+        (dcaR.idle!=null ? '<div class="tag" style="margin-top:8px">Idle cash '+sym+fmtPrice(dcaR.idle)+' → ~'+Math.ceil(dcaR.weeksBase)+'wk to deploy at base pace'+(dcaR.weeksSugg!=null&&dcaR.accel!==1&&dcaR.accel>0?' (~'+Math.ceil(dcaR.weeksSugg)+'wk at ×'+dcaR.accel.toFixed(2)+')':'')+'</div>' : '')+
+        '<div class="tag" style="margin-top:6px;color:'+C.faint+'">Paced by valuation + sentiment (cheapness), capped by your target exposure. A schedule, not an order — no leverage, no auto-buy.</div>'+
+      '</div>';
+    }
+    h += section("DCA schedule"+(dcaR?" · ×"+dcaR.accel.toFixed(2):""), "", dcaInner);
 
     // pillars
     h += section("Five pillars", "", d.pillars.map(pillarBar).join(""));
@@ -1101,6 +1159,9 @@
       nin("ips","totalValue","Total investable pool (crypto + cash)",ip.totalValue)+
       nin("ips","holdings","Amount in crypto now",ip.holdings)+
       '<div class="tag" style="margin:2px 0 4px">The pool = crypto plus the cash/stables you\'d rotate it into — so pool ≥ crypto amount. Max-drawdown sets the volatility target; both values turn the recommendation into a '+(st.ccy==="EUR"&&st.fx!=null?"€":"$")+' trade. Left blank → percentages only.</div>'+
+      '<div class="up faint" style="margin:10px 0 4px">Weekly buy plan (per coin)</div>'+
+      COINS.map(c=>nin("dca",c.sym,c.sym, (ip.dca&&ip.dca[c.sym]!=null)?ip.dca[c.sym]:"")).join("")+
+      '<div class="tag" style="margin:2px 0 4px">Your normal weekly amount per coin. The DCA schedule card paces these up when cheap/fearful, down when rich/greedy, and stops at your target exposure.</div>'+
       '<div style="display:flex;gap:8px;margin-top:12px">'+
         '<button class="btn amber" data-action="save-policy" style="background:'+C.amber+';color:#1A1A1A">Save policy</button></div>'+
       (st.policyMsg?'<div class="tag" style="color:'+C.green+';margin-top:8px">'+esc(st.policyMsg)+'</div>':'')+
@@ -1171,6 +1232,7 @@
     else if(g==="metrics") state.metrics = { ...state.metrics, [k]: raw==="" ? null : +raw, ts: Date.now() };
     else if(g==="ips"){ const numK={maxDD:1,targetPos:1,totalValue:1,holdings:1,maxPos:1};
       state.ips[k] = numK[k] ? (raw==="" ? "" : +raw) : raw; }
+    else if(g==="dca"){ state.ips.dca = state.ips.dca||{}; state.ips.dca[k] = raw==="" ? "" : +raw; }
   });
 
   // ================= BOOT =================

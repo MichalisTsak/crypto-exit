@@ -22,7 +22,7 @@ to reference it.
 - **Don't read `index.html` top-to-bottom.** Grep for section banners and read only that range:
   `price sources`, `history:`, `calibration`, `on-chain valuation`, `regimes + hysteresis`,
   `STATE`, `FETCH ORCHESTRATOR`, `ENGINE`, `RENDER`, `EVENTS`. CSS/head (lines 1–92) rarely change.
-- **Validate with `node test/harness.js`** (63 offline checks, mocked network/DOM — must stay
+- **Validate with `node test/harness.js`** (71 offline checks, mocked network/DOM — must stay
   green) and `node test/watchdog.js` (29 checks: alert logic + a live-engine `derive()` field
   contract). Both use the shared mocks in `test/env.js` — don't rebuild mocks from scratch,
   extend `env.js`. `node test/live.js` hits real APIs (~15 requests — use sparingly, spends the
@@ -51,6 +51,15 @@ to reference it.
   per top-zone marker); capped at `ips.maxPos`. **Asymmetric — only ever de-risks, min(…,1), never
   levers, never auto-trades.** Turnover deadband 0.10 (hold vs trim/add); `$` delta needs
   `ips.totalValue`+`ips.holdings`, else %-only. Null (no card) when no `maxDD` or <30 return days.
+- **DCA scheduler** (Phase 6, `computeDca()` → "DCA schedule" card): paces a per-coin weekly buy
+  plan (`ips.dca`). **Pace = CHEAPNESS (Valuation+Sentiment pillars = MVRV+F&G), NOT the exposure
+  gap** — buy-timing is mean-reversion, the opposite of the momentum/risk-off exit signal (see
+  `docs/dca-scheduler-spec.md` for the research). `accel=clamp(1+0.5·valueScore,0.5,2)` where
+  `valueScore=(V·25+S·15)/40`; × ceiling (taper to 0 as `wCur`→`wTarget`, from `computeSizing`);
+  capped at 1.0× when verdict is EXIT WATCH/SIGNAL (rails). No short-horizon dip trigger. Shows
+  idle-cash deployment timeline. NOTE: user-entered money (`totalValue`/`holdings`/`dca`) is in the
+  DISPLAY currency — do NOT wrap in `disp()` (that's for USD exchange prices only); Phase 6 fixed a
+  latent bug where Phase 5-A did.
 - **Backtest** (`buildBacktest()` → "Track record" card, collapsed): replays the pillar engine
   over every day since ~2018, buckets composite into 5 bands, reports N / median 30d & 90d fwd
   return / % higher at 90d, highlights today's band. Phase 5-B: computes BOTH `rowsWf`
@@ -59,8 +68,9 @@ to reference it.
   percentile). UI toggles `ui.wf` (default walk-forward = the honest one); only Momentum was
   calibrated so it's the sole look-ahead source. Weekly values use last completed week; V from MVRV Z.
 - **localStorage keys**: `exitmon2:cfg` (user rails/floors/manual MVRV — never wipe),
-  `ips` (Phase 5-C investment policy {objective, plan, maxDD, targetPos, totalValue, holdings,
-  maxPos, reviewedOn} — own key, never wiped by `cfg` persist; `maxDD` feeds Phase 5-A sizing),
+  `ips` (Phase 5-C policy {objective, plan, maxDD, targetPos, totalValue, holdings, maxPos,
+  `dca`:{sym→weekly $}, reviewedOn} — own key, never wiped by `cfg` persist; `maxDD` feeds Phase
+  5-A sizing, `dca` feeds Phase 6 scheduler),
   `ccy`, `fx`, `histv2` ([ts,close] since 2017, 6h TTL, incremental delta), `onchain` (12h TTL),
   `regime` ({cur, since, pending, pendingSince}), `fnghist` + `mvrvhist` (dayNum→value maps, 7d TTL),
   `lastgood` ({ts, coins, quality, fng, fngTrend, source} — snapshot of the last successful
@@ -108,16 +118,7 @@ about a market event without opening the app. Does NOT modify `index.html` or th
   `WATCHDOG_STATE_DIR=<scratch>` (one real refresh, ~4 bitcoin-data reqs — sparingly).
 
 ## Backlog (agreed with user, not built)
-**Phase 6 — DCA scheduler (spec'd, not built): see [`docs/dca-scheduler-spec.md`](docs/dca-scheduler-spec.md).**
-Per-coin weekly buy plan (`ips.dca`) + a 0.5×–2.0× pacing multiplier. Key design decision
-(researched): pace off **cheapness = Valuation + Sentiment pillars** (MVRV + F&G — the signals
-evidence says drive good DCA timing), NOT the exposure gap (that's momentum/risk-off, which would
-slow buying at the best entries). Exposure gap = the *ceiling* (taper to 0 at target); rails/EXIT
-verdict = a safety cap at 1.0× (user chose "hold steady, don't accelerate through capitulation").
-No short-horizon dip trigger (momentum trap). Reuses walk-forward-validated pillars, no new
-indicator. Explicitly cannot judge whether to *add* a new coin (needs live research) — schedules
-buys across the existing watchlist only.
-Also still open: config export/import (QR/clipboard JSON — would let the Phase 5-C policy be
+Still open: config export/import (QR/clipboard JSON — would let the Phase 5-C policy be
 backed up / moved between devices), GitHub Pages walkthrough. Tier-2/3 risk-layer ideas from
 [`docs/risk-layer-spec.md`](docs/risk-layer-spec.md) (bootstrap CIs, composite-agreement
 scoring, correlation-aware alt risk, any regime-model upgrade) remain gated on the Methodology
@@ -127,4 +128,8 @@ Phase 3 — offline PWA: service worker + lastgood cache fallback — shipped 20
 Phase 4 — watchdog cron + Telegram alerts — shipped 2026-07-12.
 Phase 5 — risk layer, spec in `docs/risk-layer-spec.md` — shipped 2026-07-13:
   C encoded IPS (`exitmon2:ips`, verdict repeat-back), A vol-targeted position sizing
-  (`computeSizing`, "Position sizing" card), B walk-forward backtest (`rowsWf`/`rowsIn` toggle).)
+  (`computeSizing`, "Position sizing" card), B walk-forward backtest (`rowsWf`/`rowsIn` toggle).
+Phase 6 — DCA scheduler, spec in `docs/dca-scheduler-spec.md` — shipped 2026-07-13:
+  `computeDca` "DCA schedule" card, cheapness-paced (V+S) with exposure ceiling + rails cap.
+  Also: synced watchlist to actual holdings (BTC/ETH/SOL/NEAR/LTC, ladders generate from `ALTS`);
+  fixed a currency bug (user-entered money must not be `disp()`-converted).)

@@ -183,6 +183,48 @@ const check = (name, cond) => { if (cond) { pass++; console.log("  ok  " + name)
   check("toggles back to the honest walk-forward default", kk.cap.html.includes("no look-ahead"));
   check("no NaN in either backtest view", !kk.cap.html.includes("NaN"));
 
+  // M — Phase 6: DCA scheduler (cheapness pace, exposure ceiling, rails cap)
+  console.log("\n[M] DCA scheduler");
+  const accelOf = (h) => { const m = h.match(/pace<\/span><span class="big-num">×(\d\.\d\d)/); return m ? +m[1] : null; };
+  const lowRails = (setter) => { setter("th", "caution", 1); setter("th", "structural", 1); setter("th", "capitulation", 1); };
+  // cheap + fearful mock (MVRV 0.38, F&G 34) with rails disabled → should lean in
+  const storeM = new Map();
+  const m1 = await boot(storeM);
+  clickAction(m1, "policy");
+  const setM = (g, k, v) => m1.root.handlers.input({ target: { dataset: { group: g, k }, value: String(v) } });
+  ["BTC", "ETH", "SOL", "NEAR", "LTC"].forEach((s, i) => setM("dca", s, [20, 20, 20, 15, 7][i]));
+  lowRails(setM);
+  clickAction(m1, "save-policy");
+  check("DCA card renders a pace multiplier", m1.cap.html.includes("DCA schedule") && accelOf(m1.cap.html) != null);
+  check("per-coin plan rows render (with % + LTC)", /BTC\s+\d+%/.test(m1.cap.html) && m1.cap.html.includes("LTC"));
+  check("cheap + fearful → leans in (accel > 1)", accelOf(m1.cap.html) > 1);
+  check("dca plan persisted", ((JSON.parse(storeM.get("exitmon2:ips") || "{}").dca) || {}).BTC === 20);
+
+  // over target exposure → taper to 0 (rails disabled so this isolates the ceiling, not the cap)
+  const storeN = new Map();
+  const n1 = await boot(storeN);
+  clickAction(n1, "policy");
+  const setN = (g, k, v) => n1.root.handlers.input({ target: { dataset: { group: g, k }, value: String(v) } });
+  ["BTC", "ETH"].forEach((s) => setN("dca", s, 20));
+  lowRails(setN);
+  setN("ips", "maxDD", 1); setN("ips", "totalValue", 1000); setN("ips", "holdings", 1000);
+  clickAction(n1, "save-policy");
+  check("at/over target exposure tapers the pace to 0", n1.cap.html.includes("tapering") && accelOf(n1.cap.html) === 0);
+
+  // rails firing → hold base pace even though cheapness wants more
+  const storeO = new Map();
+  const o1 = await boot(storeO);
+  clickAction(o1, "policy");
+  const setO = (g, k, v) => o1.root.handlers.input({ target: { dataset: { group: g, k }, value: String(v) } });
+  ["BTC", "ETH"].forEach((s) => setO("dca", s, 20));
+  setO("th", "caution", 99000000); setO("th", "structural", 99000000); setO("th", "capitulation", 99000000);
+  clickAction(o1, "save-policy");
+  check("exit verdict caps acceleration to base pace", o1.cap.html.includes("holding base pace") && accelOf(o1.cap.html) <= 1);
+
+  const noPlan = await boot(new Map());
+  check("no plan → prompts to set weekly buys", noPlan.cap.html.includes("Set a weekly buy amount"));
+  check("no NaN across DCA states", !m1.cap.html.includes("NaN") && !n1.cap.html.includes("NaN") && !o1.cap.html.includes("NaN"));
+
   console.log("\n" + pass + " passed, " + failCount + " failed");
   process.exit(failCount ? 1 : 0);
 })();
