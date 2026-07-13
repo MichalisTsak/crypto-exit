@@ -84,6 +84,12 @@
   input[type=number]{width:104px;text-align:right;padding:6px 8px;border-radius:6px;
     background:var(--chassis);border:1px solid var(--etch);color:var(--amber);font-family:var(--mono);font-size:13px}
   input[type=number]:focus{outline:none;border-color:var(--amber)}
+  input[type=text].pin{width:150px;text-align:right;padding:6px 8px;border-radius:6px;
+    background:var(--chassis);border:1px solid var(--etch);color:var(--text);font-size:13px}
+  textarea.pta{width:100%;box-sizing:border-box;margin-top:6px;padding:8px;border-radius:7px;min-height:56px;resize:vertical;
+    background:var(--chassis);border:1px solid var(--etch);color:var(--text);font:inherit;font-size:13px;line-height:1.45}
+  input[type=text].pin:focus,textarea.pta:focus{outline:none;border-color:var(--amber)}
+  .policy{border-radius:10px;padding:11px 12px;margin-top:10px;border:1px solid var(--etch);background:var(--chassis)}
 
   .foot{font-size:11.5px;line-height:1.6;color:var(--faint);padding:2px 4px 10px}
   .tag{font-size:11px;color:var(--faint);font-family:var(--mono)}
@@ -100,6 +106,9 @@
     green:"#3ECF8E", teal:"#4FD1C5", warn:"#F5A742", orange:"#F58742", red:"#F16D6D" };
 
   const DEFAULT_TH = { caution:52000, structural:48000, capitulation:42000, velocity:-12 };
+  // Investment Policy Statement — decided when calm, repeated back under stress. Also holds
+  // the risk parameters the position-sizing layer consumes (maxDD, totalValue, holdings, maxPos).
+  const DEFAULT_IPS = { objective:"", plan:"", maxDD:40, targetPos:"", totalValue:"", holdings:"", maxPos:100, reviewedOn:null };
 
   const COINS = [
     { id:"bitcoin",      base:"BTC",    sym:"BTC",    name:"Bitcoin",       core:true },
@@ -540,17 +549,20 @@
     coins:{}, ind:{}, quality:{}, fng:null, fngTrend:null,
     ccy:"EUR", fx:null, onchain:null, calib:null, histDays:0, backtest:null,
     th:{...DEFAULT_TH}, floors:null, metrics:{ mvrvZ:null, ma200w:null, ts:null },
-    srcStatus:{}, saveMsg:"",
-    ui:{ rails:false, exit:false, profit:false, config:false, evidence:false },
+    ips:{...DEFAULT_IPS},
+    srcStatus:{}, saveMsg:"", policyMsg:"",
+    ui:{ rails:false, exit:false, profit:false, config:false, evidence:false, policy:false },
   };
 
   function loadPrefs(){
     const cfg = lsGet("exitmon2:cfg");
     if(cfg){ if(cfg.th) state.th={...DEFAULT_TH,...cfg.th}; if(cfg.floors) state.floors=cfg.floors; if(cfg.metrics) state.metrics={...state.metrics,...cfg.metrics}; }
+    const ips = lsGet("exitmon2:ips"); if(ips) state.ips={...DEFAULT_IPS,...ips};
     const ccy = lsGet("exitmon2:ccy"); if(ccy==="USD"||ccy==="EUR") state.ccy=ccy;
     const fx  = lsGet("exitmon2:fx");  if(fx && fx.rate) state.fx=fx.rate;
   }
   function persist(){ return lsSet("exitmon2:cfg",{ th:state.th, floors:state.floors, metrics:state.metrics }); }
+  function persistIps(){ state.ips.reviewedOn=Date.now(); return lsSet("exitmon2:ips",state.ips); }
 
   // ================= FETCH ORCHESTRATOR =================
   async function refresh(){
@@ -818,6 +830,27 @@
       (prefix?'<span class="pfx">'+esc(prefix)+'</span>':'')+
       '<input type="number" step="any" data-group="'+group+'" data-k="'+key+'" value="'+esc(val)+'"></span></label>';
   }
+  function tin(group,key,label,value,ph,pfx){
+    const val=(value==null)?"":value;
+    return '<label class="nin"><span class="l">'+esc(label)+'</span><span class="r">'+
+      (pfx?'<span class="pfx">'+esc(pfx)+'</span>':'')+
+      '<input type="text" class="pin" data-group="'+group+'" data-k="'+key+'" value="'+esc(val)+'" placeholder="'+esc(ph||"")+'"></span></label>';
+  }
+  function tarea(group,key,label,value,ph){
+    return '<div style="padding:6px 0"><div class="l" style="font-size:13px;color:'+C.dim+'">'+esc(label)+'</div>'+
+      '<textarea class="pta" data-group="'+group+'" data-k="'+key+'" placeholder="'+esc(ph||"")+'">'+esc(value==null?"":value)+'</textarea></div>';
+  }
+  // The user's own pre-committed action for the current read (the emotion-remover).
+  function policyActionFor(d){
+    const ip=state.ips; if(!ip || !ip.plan || !ip.plan.trim()) return null;
+    return ip.plan.trim();
+  }
+  // Nudge to re-examine a stale policy — revisit when calm, don't abandon under stress.
+  function reviewNudge(ts){
+    if(!ts) return "";
+    const mo=(Date.now()-ts)/(30*86400000);
+    return mo>=6 ? ' · review overdue ('+Math.floor(mo)+"mo)" : "";
+  }
 
   function render(){
     const d = state.loading && !state.updated ? null : derive();
@@ -852,6 +885,18 @@
       '<div class="big" style="color:'+v.color+'">'+(st.loading?"READING":esc(v.title))+'</div>'+
       '<div class="order">'+(st.loading?"Refreshing…":esc(v.order))+'</div>'+
       (v.override?'<div class="det" style="margin-top:6px;color:'+C.dim+'">Regime read was “'+esc(d.regime.name)+'” — but the rails are law when invalidation levels break.</div>':'')+
+      // pre-committed plan — repeated back, prominent when the read is elevated
+      (function(){
+        const plan=policyActionFor(d), elevated=(v.key==="RED"||v.key==="ORANGE"||v.key==="EUPHORIA");
+        if(plan){ const ip=state.ips;
+          return '<div class="policy"'+(elevated?' style="border-color:'+v.color+'88;background:'+v.color+'12"':'')+'>'+
+            '<div class="up faint" style="font-size:10px">Your plan'+(ip.objective&&ip.objective.trim()?' · '+esc(ip.objective.trim()):'')+'</div>'+
+            '<div style="font-size:13px;margin-top:4px;color:var(--text)">'+esc(plan)+'</div>'+
+            (ip.reviewedOn?'<div class="tag" style="margin-top:5px">decided '+esc(new Date(ip.reviewedOn).toLocaleDateString())+reviewNudge(ip.reviewedOn)+'</div>':'')+
+          '</div>';
+        }
+        return '<div class="policy"><div class="tag">No pre-committed plan — <button class="link" data-action="policy" style="padding:0">decide it while calm →</button></div></div>';
+      })()+
       // gauge
       '<div style="margin-top:12px;opacity:'+(v.key==="LOWCONF"?0.45:1)+'">'+
         '<div class="row tag"><span>bearish −2</span><span>read '+(d.composite==null?"—":(d.composite>0?"+":"")+d.composite.toFixed(2))+(v.key==="LOWCONF"?" (partial)":"")+'</span><span>+2 bullish</span></div>'+
@@ -966,6 +1011,23 @@
         '<li><b>4. Never sell everything at once</b> — tops take months, ladders catch them.</li>'+
         '</ol></div>' : "");
 
+    // investment policy (IPS) — write once while calm; the verdict repeats it back under stress
+    const ip = st.ips;
+    const polInner = ui.policy ? '<div class="sub p12">'+
+      '<div class="tag" style="margin-bottom:8px">Write this once, while calm. The verdict card repeats it back when it matters — so a crash executes a decision you already made, not a fresh one under stress.</div>'+
+      tarea("ips","objective","Why I hold (one line)",ip.objective,"e.g. Long-term BTC conviction — money I won't need for 3+ years.")+
+      tarea("ips","plan","My plan when the exit signal fires",ip.plan,"e.g. Sell in 4 weekly tranches of 25%. Keep the BTC core above the capitulation line. Park in EUR.")+
+      '<div class="up faint" style="margin:10px 0 4px">Risk parameters</div>'+
+      nin("ips","maxDD","Max drawdown I can stomach (%)",ip.maxDD,"")+
+      nin("ips","targetPos","Target crypto exposure (%)",ip.targetPos,"")+
+      '<div class="tag" style="margin:2px 0 4px">Max-drawdown tolerance feeds the position-sizing layer (next phase).</div>'+
+      '<div style="display:flex;gap:8px;margin-top:12px">'+
+        '<button class="btn amber" data-action="save-policy" style="background:'+C.amber+';color:#1A1A1A">Save policy</button></div>'+
+      (st.policyMsg?'<div class="tag" style="color:'+C.green+';margin-top:8px">'+esc(st.policyMsg)+'</div>':'')+
+      '</div>' : "";
+    h += section("Investment policy"+(ip.plan&&ip.plan.trim()?"":" — not set yet"),
+      '<button class="link" data-action="policy">'+(ui.policy?"Hide":"Edit")+'</button>', polInner);
+
     // config
     const m = st.metrics;
     const cfgInner = ui.config ? '<div class="sub p12">'+
@@ -1008,6 +1070,8 @@
     else if(a==="exit"){ state.ui.exit=!state.ui.exit; render(); }
     else if(a==="profit"){ state.ui.profit=!state.ui.profit; render(); }
     else if(a==="config"){ state.ui.config=!state.ui.config; render(); }
+    else if(a==="policy"){ state.ui.policy=!state.ui.policy; render(); }
+    else if(a==="save-policy"){ const ok=persistIps(); state.policyMsg=ok?"Policy saved":"Save failed"; render(); setTimeout(()=>{state.policyMsg="";render();},2500); }
     else if(a==="save"){ const ok=persist(); state.saveMsg=ok?"Saved":"Save failed"; render(); setTimeout(()=>{state.saveMsg="";render();},2500); }
     else if(a==="recal"){
       const nf={}; for(const c of COINS){ if(!c.floorKey) continue; const p=state.coins[c.sym]&&state.coins[c.sym].price;
@@ -1023,6 +1087,8 @@
     if(g==="th")      state.th[k] = raw==="" ? "" : +raw;
     else if(g==="floor"){ state.floors = state.floors||{}; state.floors[k] = raw==="" ? "" : +raw; }
     else if(g==="metrics") state.metrics = { ...state.metrics, [k]: raw==="" ? null : +raw, ts: Date.now() };
+    else if(g==="ips"){ const numK={maxDD:1,targetPos:1,totalValue:1,holdings:1,maxPos:1};
+      state.ips[k] = numK[k] ? (raw==="" ? "" : +raw) : raw; }
   });
 
   // ================= BOOT =================

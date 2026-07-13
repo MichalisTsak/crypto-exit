@@ -114,6 +114,29 @@ const check = (name, cond) => { if (cond) { pass++; console.log("  ok  " + name)
   check("honest error, not a fabricated dashboard", hh.cap.html.includes("All price sources are unreachable"));
   check("no NaN in error state", !hh.cap.html.includes("NaN"));
 
+  // I — Phase 5-C: investment policy (IPS) persists + repeats back in the verdict
+  console.log("\n[I] investment policy (IPS)");
+  const i0 = await boot(new Map());
+  check("no-policy prompt shown when unset", i0.cap.html.includes("No pre-committed plan") && i0.cap.html.includes("decide it while calm"));
+  const storeI = new Map();
+  const i1 = await boot(storeI);
+  clickAction(i1, "policy"); // open the editor (real flow: inputs only exist when expanded)
+  const typeIps = (k, v) => i1.root.handlers.input({ target: { dataset: { group: "ips", k }, value: String(v) } });
+  typeIps("objective", "Long-term BTC conviction");
+  typeIps("plan", "Sell in 4 weekly tranches of 25%; keep the BTC core.");
+  typeIps("maxDD", "35");
+  clickAction(i1, "save-policy");
+  const savedIps = JSON.parse(storeI.get("exitmon2:ips") || "null");
+  check("policy persisted to exitmon2:ips", !!(savedIps && savedIps.plan && savedIps.plan.includes("4 weekly tranches") && savedIps.maxDD === 35 && savedIps.reviewedOn));
+  check("typing did not touch cfg keys", !storeI.has("exitmon2:cfg") || !(JSON.parse(storeI.get("exitmon2:cfg")).ips));
+  check("save confirmation shown", i1.cap.html.includes("Policy saved"));
+  const i2 = await boot(storeI);
+  check("saved plan repeated back in verdict", i2.cap.html.includes("Your plan") && i2.cap.html.includes("Sell in 4 weekly tranches"));
+  check("objective shown alongside plan", i2.cap.html.includes("Long-term BTC conviction"));
+  check("no-policy prompt gone once set", !i2.cap.html.includes("No pre-committed plan"));
+  check("policy survives a fresh boot (own key, never wiped)", JSON.parse(storeI.get("exitmon2:ips") || "null").plan.includes("4 weekly"));
+  check("no NaN with policy set", !i2.cap.html.includes("NaN"));
+
   console.log("\n" + pass + " passed, " + failCount + " failed");
   process.exit(failCount ? 1 : 0);
 })();

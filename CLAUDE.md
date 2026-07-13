@@ -22,8 +22,8 @@ to reference it.
 - **Don't read `index.html` top-to-bottom.** Grep for section banners and read only that range:
   `price sources`, `history:`, `calibration`, `on-chain valuation`, `regimes + hysteresis`,
   `STATE`, `FETCH ORCHESTRATOR`, `ENGINE`, `RENDER`, `EVENTS`. CSS/head (lines 1–92) rarely change.
-- **Validate with `node test/harness.js`** (41 offline checks, mocked network/DOM — must stay
-  green) and `node test/watchdog.js` (23 checks: alert logic + a live-engine `derive()` field
+- **Validate with `node test/harness.js`** (50 offline checks, mocked network/DOM — must stay
+  green) and `node test/watchdog.js` (29 checks: alert logic + a live-engine `derive()` field
   contract). Both use the shared mocks in `test/env.js` — don't rebuild mocks from scratch,
   extend `env.js`. `node test/live.js` hits real APIs (~15 requests — use sparingly, spends the
   bitcoin-data daily quota). `sw.js` has no logic to unit-test — `node --check sw.js` for syntax.
@@ -50,6 +50,8 @@ to reference it.
   return / % higher at 90d, highlights today's band. In-sample (disclosed); weekly values use
   last completed week (no lookahead); V replayed from MVRV Z only.
 - **localStorage keys**: `exitmon2:cfg` (user rails/floors/manual MVRV — never wipe),
+  `ips` (Phase 5-C investment policy {objective, plan, maxDD, targetPos, totalValue, holdings,
+  maxPos, reviewedOn} — own key, never wiped by `cfg` persist; `maxDD` feeds Phase 5-A sizing),
   `ccy`, `fx`, `histv2` ([ts,close] since 2017, 6h TTL, incremental delta), `onchain` (12h TTL),
   `regime` ({cur, since, pending, pendingSince}), `fnghist` + `mvrvhist` (dayNum→value maps, 7d TTL),
   `lastgood` ({ts, coins, quality, fng, fngTrend, source} — snapshot of the last successful
