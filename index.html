@@ -565,8 +565,8 @@
     ccy:"EUR", fx:null, onchain:null, calib:null, histDays:0, backtest:null,
     th:{...DEFAULT_TH}, floors:null, metrics:{ mvrvZ:null, ma200w:null, ts:null },
     ips:{...DEFAULT_IPS},
-    srcStatus:{}, saveMsg:"", policyMsg:"",
-    ui:{ rails:false, exit:false, profit:false, config:false, evidence:false, policy:false, wf:true },
+    srcStatus:{}, saveMsg:"", policyMsg:"", importText:"", backupMsg:"", restoreMsg:"", restoreOk:false,
+    ui:{ rails:false, exit:false, profit:false, config:false, evidence:false, policy:false, backup:false, wf:true },
   };
 
   function loadPrefs(){
@@ -578,6 +578,41 @@
   }
   function persist(){ return lsSet("exitmon2:cfg",{ th:state.th, floors:state.floors, metrics:state.metrics }); }
   function persistIps(){ state.ips.reviewedOn=Date.now(); return lsSet("exitmon2:ips",state.ips); }
+
+  // ---- config backup: move the two "own-decision" keys (policy + rails) between devices ----
+  // Deliberately excludes market data (prices/history/on-chain) — that re-fetches on its own.
+  function buildBackup(){
+    return JSON.stringify({
+      app:"exitmon2", v:1, exported:Date.now(),
+      cfg:{ th:state.th, floors:state.floors, metrics:state.metrics },
+      ips:state.ips, ccy:state.ccy
+    });
+  }
+  function applyBackup(text){
+    let o; try{ o=JSON.parse(text); }catch(e){ return { ok:false, msg:"Not valid JSON — check you copied the whole backup." }; }
+    if(!o || o.app!=="exitmon2") return { ok:false, msg:"Not an Exit Monitor backup." };
+    const parts=[];
+    if(o.cfg){
+      if(o.cfg.th)      state.th={...DEFAULT_TH,...o.cfg.th};
+      if(o.cfg.floors)  state.floors=o.cfg.floors;
+      if(o.cfg.metrics) state.metrics={...state.metrics,...o.cfg.metrics};
+      persist(); parts.push("rails");
+    }
+    if(o.ips){ state.ips={...DEFAULT_IPS,...o.ips}; lsSet("exitmon2:ips",state.ips); parts.push("policy"); }  // keep the backup's reviewedOn (don't stamp now)
+    if(o.ccy==="USD"||o.ccy==="EUR"){ state.ccy=o.ccy; lsSet("exitmon2:ccy",state.ccy); parts.push("currency"); }
+    if(!parts.length) return { ok:false, msg:"Backup had nothing to restore." };
+    return { ok:true, msg:"Restored "+parts.join(" + ")+"." };
+  }
+  function copyText(txt){
+    try{ if(typeof navigator!=="undefined" && navigator.clipboard && navigator.clipboard.writeText)
+      return navigator.clipboard.writeText(txt).then(()=>true,()=>false); }catch(e){}
+    try{
+      const ta=document.createElement("textarea");
+      ta.value=txt; ta.setAttribute("readonly",""); ta.style.position="fixed"; ta.style.top="-1000px";
+      document.body.appendChild(ta); ta.select();
+      const ok=document.execCommand("copy"); document.body.removeChild(ta); return Promise.resolve(ok);
+    }catch(e){ return Promise.resolve(false); }
+  }
 
   // ================= FETCH ORCHESTRATOR =================
   async function refresh(){
@@ -1195,6 +1230,23 @@
     h += section("Trigger levels & metrics",
       '<button class="link" data-action="config">'+(ui.config?"Hide":"Edit")+'</button>', cfgInner);
 
+    // backup & restore — carry the policy + rails to another device; market data re-fetches on its own
+    const monoTA = 'font-family:var(--mono);font-size:11px;min-height:72px';
+    const bkInner = ui.backup ? '<div class="sub p12">'+
+      '<div class="tag" style="margin-bottom:10px">Your policy, rails and floors live only in this phone’s storage. Copy the backup below somewhere safe, or paste one in to move everything onto a new device. Prices and market history aren’t included — they re-fetch on their own.</div>'+
+      '<div class="up faint" style="margin:2px 0 4px">Backup — copy this</div>'+
+      '<textarea class="pta" data-k="exportText" readonly style="'+monoTA+'">'+esc(buildBackup())+'</textarea>'+
+      '<div style="display:flex;gap:8px;margin:8px 0 14px"><button class="btn amber" data-action="copy-backup" style="background:'+C.amber+';color:#1A1A1A">Copy backup</button></div>'+
+      (st.backupMsg?'<div class="tag" style="color:'+C.teal+';margin:-8px 0 12px">'+esc(st.backupMsg)+'</div>':'')+
+      '<div class="up faint" style="margin:2px 0 4px">Restore — paste a backup</div>'+
+      '<textarea class="pta" data-group="backup" data-k="importText" placeholder="Paste a backup here, then tap Restore." style="'+monoTA+'">'+esc(st.importText||"")+'</textarea>'+
+      '<div class="tag" style="margin:6px 0 4px">Restore overwrites your current policy and rails with the pasted ones.</div>'+
+      '<div style="display:flex;gap:8px;margin-top:8px"><button class="btn" data-action="restore">Restore from backup</button></div>'+
+      (st.restoreMsg?'<div class="tag" style="color:'+(st.restoreOk?C.green:C.red)+';margin-top:8px">'+esc(st.restoreMsg)+'</div>':'')+
+      '</div>' : "";
+    h += section("Backup & restore",
+      '<button class="link" data-action="backup">'+(ui.backup?"Hide":"Open")+'</button>', bkInner);
+
     h += '<div class="foot">Rule-based reads on live market data — prices medianed across four exchanges, indicators computed on your device from nine years of daily candles and scored against their own history, on-chain valuation (MVRV Z · NUPL · Puell) from bitcoin-data.com. No AI, no estimates. Informational tool, not financial advice. Verify prices on your exchange before acting; crypto can fall further than any model expects.</div>';
 
     root.innerHTML = h;
@@ -1214,6 +1266,15 @@
     else if(a==="profit"){ state.ui.profit=!state.ui.profit; render(); }
     else if(a==="config"){ state.ui.config=!state.ui.config; render(); }
     else if(a==="policy"){ state.ui.policy=!state.ui.policy; render(); }
+    else if(a==="backup"){ state.ui.backup=!state.ui.backup; render(); }
+    else if(a==="copy-backup"){ copyText(buildBackup()).then(ok=>{ state.backupMsg=ok?"Backup copied to clipboard.":"Couldn’t reach the clipboard — select the text above and copy it manually."; render(); setTimeout(()=>{state.backupMsg="";render();},3500); }); }
+    else if(a==="restore"){
+      const txt=(state.importText||"").trim();
+      if(!txt){ state.restoreMsg="Paste a backup first."; state.restoreOk=false; render(); return; }
+      const r=applyBackup(txt); state.restoreMsg=r.msg; state.restoreOk=r.ok;
+      if(r.ok) state.importText="";
+      render(); if(r.ok) setTimeout(()=>{state.restoreMsg="";render();},4000);
+    }
     else if(a==="save-policy"){ const ok=persistIps(); state.policyMsg=ok?"Policy saved":"Save failed"; render(); setTimeout(()=>{state.policyMsg="";render();},2500); }
     else if(a==="save"){ const ok=persist(); state.saveMsg=ok?"Saved":"Save failed"; render(); setTimeout(()=>{state.saveMsg="";render();},2500); }
     else if(a==="recal"){
@@ -1233,6 +1294,7 @@
     else if(g==="ips"){ const numK={maxDD:1,targetPos:1,totalValue:1,holdings:1,maxPos:1};
       state.ips[k] = numK[k] ? (raw==="" ? "" : +raw) : raw; }
     else if(g==="dca"){ state.ips.dca = state.ips.dca||{}; state.ips.dca[k] = raw==="" ? "" : +raw; }
+    else if(g==="backup"){ state.importText = raw; }
   });
 
   // ================= BOOT =================

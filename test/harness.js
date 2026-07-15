@@ -225,6 +225,38 @@ const check = (name, cond) => { if (cond) { pass++; console.log("  ok  " + name)
   check("no plan → prompts to set weekly buys", noPlan.cap.html.includes("Set a weekly buy amount"));
   check("no NaN across DCA states", !m1.cap.html.includes("NaN") && !n1.cap.html.includes("NaN") && !o1.cap.html.includes("NaN"));
 
+  // P — config backup / restore (export the policy+rails, import them back)
+  console.log("\n[P] config backup / restore");
+  const storeP = new Map();
+  const p1 = await boot(storeP);
+  const setP = (g, k, v) => p1.root.handlers.input({ target: { dataset: { group: g, k }, value: String(v) } });
+  clickAction(p1, "backup");
+  check("backup card renders export + copy control", p1.cap.html.includes("Backup &amp; restore") && p1.cap.html.includes("copy-backup"));
+  check("export blob carries the app marker", p1.cap.html.includes("exitmon2"));
+  const payloadP = JSON.stringify({ app: "exitmon2", v: 1, exported: 1,
+    cfg: { th: { caution: 99000, structural: 88000, capitulation: 77000, velocity: -20 }, floors: { solFloor: 50 }, metrics: { mvrvZ: 3.3 } },
+    ips: { objective: "OBJ_TEST", plan: "PLAN_TEST", maxDD: 55, maxPos: 80, totalValue: 100000, holdings: 60000, dca: { BTC: 123 }, reviewedOn: 1700000000000 },
+    ccy: "USD" });
+  setP("backup", "importText", payloadP);
+  clickAction(p1, "restore");
+  const cfgP = JSON.parse(storeP.get("exitmon2:cfg") || "null");
+  const ipsP = JSON.parse(storeP.get("exitmon2:ips") || "null");
+  check("restore writes rails to cfg key", cfgP && cfgP.th.caution === 99000 && cfgP.floors.solFloor === 50);
+  check("restore writes policy to ips key", ipsP && ipsP.plan === "PLAN_TEST" && ipsP.maxDD === 55);
+  check("restore keeps the backup's reviewedOn (no re-stamp)", ipsP && ipsP.reviewedOn === 1700000000000);
+  check("restore applies display currency", JSON.parse(storeP.get("exitmon2:ccy")) === "USD");
+  check("restore confirms what was applied", p1.cap.html.includes("Restored ") && p1.cap.html.includes("OBJ_TEST"));
+  setP("backup", "importText", "not json {");
+  clickAction(p1, "restore");
+  check("invalid JSON is rejected, storage untouched", p1.cap.html.includes("Not valid JSON") && JSON.parse(storeP.get("exitmon2:ips")).plan === "PLAN_TEST");
+  setP("backup", "importText", JSON.stringify({ app: "somethingelse" }));
+  clickAction(p1, "restore");
+  check("foreign backup is rejected", p1.cap.html.includes("Not an Exit Monitor backup"));
+  setP("backup", "importText", "");
+  clickAction(p1, "restore");
+  check("empty paste prompts for a backup", p1.cap.html.includes("Paste a backup first"));
+  check("no NaN across backup/restore states", !p1.cap.html.includes("NaN"));
+
   console.log("\n" + pass + " passed, " + failCount + " failed");
   process.exit(failCount ? 1 : 0);
 })();

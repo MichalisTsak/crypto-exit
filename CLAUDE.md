@@ -22,7 +22,7 @@ to reference it.
 - **Don't read `index.html` top-to-bottom.** Grep for section banners and read only that range:
   `price sources`, `history:`, `calibration`, `on-chain valuation`, `regimes + hysteresis`,
   `STATE`, `FETCH ORCHESTRATOR`, `ENGINE`, `RENDER`, `EVENTS`. CSS/head (lines 1–92) rarely change.
-- **Validate with `node test/harness.js`** (71 offline checks, mocked network/DOM — must stay
+- **Validate with `node test/harness.js`** (82 offline checks, mocked network/DOM — must stay
   green) and `node test/watchdog.js` (29 checks: alert logic + a live-engine `derive()` field
   contract). Both use the shared mocks in `test/env.js` — don't rebuild mocks from scratch,
   extend `env.js`. `node test/live.js` hits real APIs (~15 requests — use sparingly, spends the
@@ -118,8 +118,7 @@ about a market event without opening the app. Does NOT modify `index.html` or th
   `WATCHDOG_STATE_DIR=<scratch>` (one real refresh, ~4 bitcoin-data reqs — sparingly).
 
 ## Backlog (agreed with user, not built)
-Still open: config export/import (QR/clipboard JSON — would let the Phase 5-C policy be
-backed up / moved between devices), GitHub Pages walkthrough. Tier-2/3 risk-layer ideas from
+Still open: GitHub Pages walkthrough. Tier-2/3 risk-layer ideas from
 [`docs/risk-layer-spec.md`](docs/risk-layer-spec.md) (bootstrap CIs, composite-agreement
 scoring, correlation-aware alt risk, any regime-model upgrade) remain gated on the Methodology
 Bar in that spec — each must show out-of-sample lift before shipping.
@@ -132,4 +131,11 @@ Phase 5 — risk layer, spec in `docs/risk-layer-spec.md` — shipped 2026-07-13
 Phase 6 — DCA scheduler, spec in `docs/dca-scheduler-spec.md` — shipped 2026-07-13:
   `computeDca` "DCA schedule" card, cheapness-paced (V+S) with exposure ceiling + rails cap.
   Also: synced watchlist to actual holdings (BTC/ETH/SOL/NEAR/LTC, ladders generate from `ALTS`);
-  fixed a currency bug (user-entered money must not be `disp()`-converted).)
+  fixed a currency bug (user-entered money must not be `disp()`-converted).
+Config backup/restore — shipped 2026-07-15: "Backup & restore" card (`ui.backup`). `buildBackup()`
+  serializes {app,v,cfg,ips,ccy} → JSON (the two own-decision keys + display ccy, NOT market data);
+  `applyBackup()` validates `app==="exitmon2"`, merges into state, persists (keeps the backup's
+  `reviewedOn`, doesn't re-stamp), re-renders. Clipboard copy via `copyText()` (navigator.clipboard
+  → hidden-textarea execCommand fallback). Paste target is input group `backup` → `state.importText`
+  (no re-render, keeps focus). Transfer is copy/paste JSON — QR was dropped (a correct inline QR
+  encoder is a lot of untested code, and the ips+cfg payload is too big to scan reliably).)
