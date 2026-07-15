@@ -4,3 +4,4 @@ watchdog/.state/
 # Local tooling / OS noise
 node_modules/
 .DS_Store
+.claude/
