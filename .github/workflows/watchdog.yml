@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  actions: write # only for the keepalive step below
 
 concurrency:
   group: watchdog
@@ -50,3 +51,13 @@ jobs:
           WATCHDOG_URL: ${{ vars.WATCHDOG_URL }}
           WATCHDOG_TEST_PING: ${{ inputs.test_ping }}
         run: node watchdog/check.js
+
+      # Public repo: GitHub disables cron workflows after 60 days without repo
+      # activity. Re-enabling the workflow through the API resets that timer, so
+      # the watchdog keeps running without dummy commits. Never fails the run.
+      - name: Keep schedule alive
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/watchdog.yml/enable"

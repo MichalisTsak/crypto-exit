@@ -114,6 +114,10 @@ about a market event without opening the app. Does NOT modify `index.html` or th
   trusted AND any alert actually sent (`commitBaseline`); a failed Telegram send or an untrusted
   read holds the old baseline so the next run re-detects and retries — an alert is never silently
   dropped by a transient send failure.
+- **Repo is public** (since 2026-11-17, so Actions + Pages stay free without GitHub Pro). Public
+  repos lose cron after 60 days with no activity, so the workflow's last step re-enables itself
+  via the API every run (`actions: write`, `continue-on-error`). Never commit secrets or real
+  amounts: they would be public.
 - Validate: `node test/watchdog.js` (offline). Live smoke = run `watchdog/check.js` with
   `WATCHDOG_STATE_DIR=<scratch>` (one real refresh, ~4 bitcoin-data reqs — sparingly).
 
